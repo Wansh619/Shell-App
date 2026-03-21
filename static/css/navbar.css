@@ -1,0 +1,89 @@
+
+
+.navbar-wrapper{
+    /* bottom: 0px; */
+    margin: 0px 56px ;
+    position: fixed;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    bottom: 10px;
+    z-index: 999999999;
+
+    .navigation-bar{
+        box-shadow: 0px 0px 24px var(--opposite-theme-shade-5);
+            display: flex;
+            gap:16px;
+            font-size: 12px;
+            width: auto;
+            position : relative;
+            justify-content: space-between;
+            background-color: var(--theme-shade-2);
+            color: var(--normal-text);
+            font-family: var(--font-family);
+            padding:8px 44px ;
+            border-radius:50px;  
+            z-index:2;
+     
+        .logo-container{
+            padding:16px;
+            border-radius: 50%;
+            background: transparent;
+            position: relative;
+            transition: all  0.3s ease ; 
+        
+            svg {
+                width: 24px;
+              path{
+                stroke : var(--opposite-theme-shade-1);
+
+            stroke-dasharray: 200;
+                
+            }
+        }
+                
+
+        } 
+        .logo-container:hover{
+        background: var(--opposite-theme-shade-1);
+        transform: translateY(-20px) scale(1.25);
+            svg {
+              
+                path{
+                    animation:  drawStroke 2s ease forwards;
+                    stroke:var(--theme-shade-1);
+                }
+            }
+        }
+
+    }
+
+  .bump{
+    
+
+    svg > path{
+      
+      fill  : var(--theme-shade-2);
+
+
+    transition: stroke-dashoffset 0.6s ease;
+    }
+
+    position:absolute;
+    transition: all  0.3s ease ; 
+    transform: translateY(-42px);;
+    border-radius:50px;
+    z-index:0;
+  }
+}
+
+
+
+@keyframes drawStroke{
+  from{
+    stroke-dashoffset: 200;
+  }
+  to{
+    stroke-dashoffset: 0;
+  }
+}

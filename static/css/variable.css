@@ -1,0 +1,83 @@
+:root {
+    /* important color and variables */
+    /* the dark shades  */
+    --dark-shade-1: #121212;
+    --dark-shade-2: #1E1E1E;
+    --dark-shade-3: #232323;
+    --dark-shade-4: #252525;
+    --dark-shade-5: #272727;
+    --dark-shade-6: #2C2C2C;
+    --dark-shade-7: #2E2E2E;
+    --dark-shade-8: #333333;
+    --dark-shade-9: #363636;
+    --dark-shade-10: #383838;
+
+    --light-shade-1: #ffffff;
+    --light-shade-2: #fdfdfd;
+    --light-shade-3: #fbfbfb;
+    --light-shade-4: #f9f9f9;
+    --light-shade-5: #f7f7f7;
+    --light-shade-6: #f5f5f5;
+    --light-shade-7: #f3f3f3;
+    --light-shade-8: #f1f1f1;
+    --light-shade-9: #efefef;
+    --light-shade-10: #ededed;
+
+    --white: white;
+    --primary: #6200EE;
+    --font-family: sans-serif;
+    --grey: grey;
+
+
+    --theme-shade-1: var(--light-shade-1);
+    --theme-shade-2: var(--light-shade-2);
+    --theme-shade-3: var(--light-shade-3);
+    --theme-shade-4: var(--light-shade-4);
+    --theme-shade-5: var(--light-shade-5);
+    --theme-shade-6: var(--light-shade-6);
+    --theme-shade-7: var(--light-shade-7);
+    --theme-shade-8: var(--light-shade-8);
+    --theme-shade-9: var(--light-shade-9);
+    --theme-shade-10: var(--light-shade-10);
+
+
+    --opposite-theme-shade-1: var(--dark-shade-1);
+    --opposite-theme-shade-2: var(--dark-shade-2);
+    --opposite-theme-shade-3: var(--dark-shade-3);
+    --opposite-theme-shade-4: var(--dark-shade-4);
+    --opposite-theme-shade-5: var(--dark-shade-5);
+    --opposite-theme-shade-6: var(--dark-shade-6);
+    --opposite-theme-shade-7: var(--dark-shade-7);
+    --opposite-theme-shade-8: var(--dark-shade-8);
+    --opposite-theme-shade-9: var(--dark-shade-9);
+    --opposite-theme-shade-10: var(--dark-shade-10);
+
+
+    --page-background:var(--theme-shade-5);
+    --normal-text : var(--opposite-theme-shade-1);
+
+}
+
+.dark {
+    --theme-shade-1: var(--dark-shade-1);
+    --theme-shade-2: var(--dark-shade-2);
+    --theme-shade-3: var(--dark-shade-3);
+    --theme-shade-4: var(--dark-shade-4);
+    --theme-shade-5: var(--dark-shade-5);
+    --theme-shade-6: var(--dark-shade-6);
+    --theme-shade-7: var(--dark-shade-7);
+    --theme-shade-8: var(--dark-shade-8);
+    --theme-shade-9: var(--dark-shade-9);
+    --theme-shade-10: var(--dark-shade-10);
+
+    --opposite-theme-shade-1: var(--light-shade-1);
+    --opposite-theme-shade-2: var(--light-shade-2);
+    --opposite-theme-shade-3: var(--light-shade-3);
+    --opposite-theme-shade-4: var(--light-shade-4);
+    --opposite-theme-shade-5: var(--light-shade-5);
+    --opposite-theme-shade-6: var(--light-shade-6);
+    --opposite-theme-shade-7: var(--light-shade-7);
+    --opposite-theme-shade-8: var(--light-shade-8);
+    --opposite-theme-shade-9: var(--light-shade-9);
+    --opposite-theme-shade-10: var(--light-shade-10);
+}

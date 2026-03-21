@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<link rel="stylesheet"
+href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+
+</head>
+
+<body>
+
+{% include "navbar.html" %}
+{% include "home.html" %}
+<section class="section">
+    {% include "terminal.html" %}
+</section>
+
+
+</body>
+</html>
