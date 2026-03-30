@@ -24,10 +24,11 @@
     --light-shade-10: #ededed;
 
     --white: white;
+    
     --primary: #6200EE;
     --font-family: sans-serif;
     --grey: grey;
-
+    --dark-theme-element-color: #00c896;
 
     --theme-shade-1: var(--light-shade-1);
     --theme-shade-2: var(--light-shade-2);
@@ -54,7 +55,7 @@
 
 
     --page-background:var(--theme-shade-5);
-    --normal-text : var(--opposite-theme-shade-1);
+    --normal-text : var(--dark-theme-element-color);
 
 }
 
@@ -80,4 +81,6 @@
     --opposite-theme-shade-8: var(--light-shade-8);
     --opposite-theme-shade-9: var(--light-shade-9);
     --opposite-theme-shade-10: var(--light-shade-10);
+    --normal-text : var(--opposite-theme-shade-1);
+
 }

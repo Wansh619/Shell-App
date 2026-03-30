@@ -5,10 +5,11 @@ import subprocess
 
 class TerminalSession:
 
-    def __init__(self, websocket):
+    def __init__(self, session_id, send_output):
         self.master_fd = None
         self.process = None
-        self.websocket = websocket
+        self.session_id = session_id
+        self.send_output = send_output
 
     async def start(self):
         self.master_fd, slave_fd = pty.openpty()
@@ -27,7 +28,9 @@ class TerminalSession:
     def read_output(self):
         try:
             data = os.read(self.master_fd, 4096)
-            asyncio.create_task(self.websocket.send(data.decode(errors="ignore")))
+            asyncio.create_task(
+                self.send_output(self.session_id, data.decode(errors="ignore"))
+            )
         except Exception:
             pass
 

@@ -1,5 +1,5 @@
 from quart import Quart, websocket, render_template, jsonify
-import uuid
+import json
 from term import TerminalSession
 from session_store import (
     init_db,
@@ -29,29 +29,76 @@ async def shutdown():
 
 @app.websocket("/terminal")
 async def terminal():
+    client_sessions = {}
 
-    session_id = str(uuid.uuid4())
-    session = TerminalSession(websocket)
-    sessions[session_id] = session
-    try:
-        create_session(session_id)
-    except Exception as error:
-        print(f"Failed to create DB session record: {error}")
+    async def send_output(session_id, value):
+        payload = {"session_id": session_id, "value": value}
+        await websocket.send(json.dumps(payload))
 
     try:
-        await session.start()
         while True:
-            data = await websocket.receive()
-            await session.write(data)
+            raw = await websocket.receive()
+            try:
+                message = json.loads(raw)
+            except Exception:
+                continue
+
+            session_id = (message.get("session_id") or "").strip()
+            value = message.get("value")
+
+            if not session_id:
+                continue
+
+            # Control messages (minimal protocol): value is a string starting with "__CTRL__:"
+            if isinstance(value, str) and value.startswith("__CTRL__:"):
+                command = value[len("__CTRL__:") :].strip().upper()
+
+                if command == "CREATE":
+                    if session_id in client_sessions:
+                        continue
+                    session = TerminalSession(session_id, send_output)
+                    client_sessions[session_id] = session
+                    sessions[session_id] = session
+                    try:
+                        create_session(session_id)
+                    except Exception as error:
+                        print(f"Failed to create DB session record: {error}")
+                    await session.start()
+                    continue
+
+                if command == "CLOSE":
+                    session = client_sessions.pop(session_id, None)
+                    if session:
+                        session.close()
+                    sessions.pop(session_id, None)
+                    try:
+                        delete_session(session_id)
+                    except Exception as error:
+                        print(f"Failed to delete DB session record: {error}")
+                    continue
+
+                continue
+
+            session = client_sessions.get(session_id)
+            if not session:
+                continue
+
+            if isinstance(value, str):
+                await session.write(value)
     except Exception:
         print("Client disconnected")
     finally:
-        session.close()
-        sessions.pop(session_id, None)
-        try:
-            delete_session(session_id)
-        except Exception as error:
-            print(f"Failed to delete DB session record: {error}")
+        for session_id, session in list(client_sessions.items()):
+            try:
+                session.close()
+            except Exception:
+                pass
+            sessions.pop(session_id, None)
+            try:
+                delete_session(session_id)
+            except Exception as error:
+                print(f"Failed to delete DB session record: {error}")
+        client_sessions.clear()
 
 
 @app.route("/")
