@@ -92,3 +92,255 @@ button{
 .terminal-pane.active{
     display: block;
 }
+
+/* --- Animated Start overlay + PCB nodes --- */
+.start-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--page-background) 88%, transparent);
+    transition: opacity 0.45s ease, visibility 0.45s ease;
+    pointer-events: none;
+}
+
+.start-overlay.is-dismissed {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.start-overlay-inner {
+    position: relative;
+    width: min(92vw, 420px);
+    height: min(92vw, 420px);
+    max-width: 420px;
+    max-height: 420px;
+    pointer-events: auto;
+}
+
+/* Strict pair: label --theme-shade-1 on fill --opposite-theme-shade-1; border matches outline family */
+.start-button {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+    width: 124px;
+    height: 124px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    border: 3px solid var(--opposite-theme-shade-1);
+    border-radius: 0;
+    background: var(--opposite-theme-shade-2);
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    color: var(--theme-shade-1) !important;
+    font-family: var(--font-family), sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.12em;
+    line-height: 1;
+    text-align: center;
+    cursor: pointer;
+    filter: drop-shadow(5px 5px 0 color-mix(in srgb, var(--normal-text) 35%, transparent));
+    transition: filter 0.25s ease, transform 0.25s ease, background-color 0.35s ease, border-color 0.35s ease;
+}
+
+.start-button:hover {
+    filter: drop-shadow(12px 12px 0 color-mix(in srgb, var(--normal-text) 45%, transparent));
+    transform: translate(-50%, -50%) scale(1.03);
+}
+
+.start-button .start-button-label {
+    position: relative;
+    z-index: 1;
+    max-width: 6.5em;
+}
+
+.pcb-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    color: var(--opposite-theme-shade-1);
+    z-index: 1;
+    pointer-events: none;
+    transition: color 0.35s ease;
+}
+
+.pcb-trace {
+    opacity: 0;
+}
+
+.pcb-nodes {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+
+.pcb-nodes.pcb-nodes--visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.pcb-node {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+    min-width: 72px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--normal-text);
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0;
+    transition: transform 0.4s ease, opacity 0.4s ease, color 0.35s ease;
+}
+
+.pcb-nodes.pcb-nodes--visible .pcb-node {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    transition-delay: calc(var(--pcb-node-i, 0) * 0.05s);
+}
+
+.pcb-node-circle .pcb-node-svg-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+}
+
+.pcb-node-circle .pcb-node-svg-wrap svg {
+    fill: currentColor;
+}
+
+.pcb-node-img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    display: block;
+}
+
+.pcb-node-fallback {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.pcb-node-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid var(--opposite-theme-shade-1);
+    background: var(--theme-shade-2);
+    color: var(--normal-text);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--opposite-theme-shade-1) 18%, transparent);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease;
+}
+
+@media (hover: hover) {
+    .pcb-node:hover .pcb-node-circle {
+        transform: scale(1.08);
+        background: var(--opposite-theme-shade-1);
+        color: var(--theme-shade-1);
+        border-color: var(--theme-shade-1);
+        box-shadow: 0 8px 20px color-mix(in srgb, var(--theme-shade-1) 22%, transparent);
+    }
+
+    .pcb-node:hover .pcb-node-label {
+        color: var(--opposite-theme-shade-1);
+    }
+}
+
+.pcb-node-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    max-width: 80px;
+    line-height: 1.2;
+}
+
+/* Full-viewport connector: same stroke color family as terminal outline (opposite-shade-1) */
+.terminal-connector-svg {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10005;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.terminal-connector-svg.terminal-connector-svg--visible {
+    opacity: 1;
+}
+
+.terminal-connector-path {
+    stroke: var(--opposite-theme-shade-1);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+/* --- Terminal reveal frame + border trace --- */
+.section-terminal {
+    min-height: 120px;
+}
+
+.terminal-reveal-frame {
+    position: relative;
+    min-height: 380px;
+    padding: 3px;
+    border-radius: 12px;
+    color: var(--opposite-theme-shade-1);
+}
+
+.terminal-border-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+    overflow: visible;
+}
+
+.terminal-border-rect {
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+    opacity: 0;
+}
+
+.terminal-wrapper {
+    position: relative;
+    z-index: 1;
+    transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+
+.terminal-wrapper.terminal-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.terminal-wrapper.terminal-visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}

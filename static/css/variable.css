@@ -24,7 +24,8 @@
     --light-shade-10: #ededed;
 
     --white: white;
-    
+    --start-sage: #9caf88;
+
     --primary: #6200EE;
     --font-family: sans-serif;
     --grey: grey;
@@ -55,7 +56,7 @@
 
 
     --page-background:var(--theme-shade-5);
-    --normal-text : var(--dark-theme-element-color);
+    --normal-text : var(--dark-shade-1);
 
 }
 
