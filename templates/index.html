@@ -8,28 +8,24 @@ href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/homeycomb.css') }}">
 
 </head>
 
 <body>
-<button class="toggle-btn" style="width: 32px;display: inline-block;" id="toggle">
 
-    <svg id="terminal-connector-svg" class="terminal-connector-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path id="terminal-connector-path" class="terminal-connector-path" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-</button>
-
-<div id="start-overlay" class="start-overlay" aria-hidden="false"></div>
+    <div id="container">
+        
+        
+    </div>
 
 
-{% include "home.html" %}
+<!-- {% include "home.html" %}
 <section id="terminal-section" class="section section-terminal">
     {% include "terminal.html" %}
-</section>
+</section> -->
 
 <script src="{{ url_for('static', filename='js/terminal.js') }}"></script>
-<script src="{{ url_for('static', filename='js/pcb-start-layout.js') }}"></script>
-<script src="{{ url_for('static', filename='js/start-ui.js') }}"></script>
-
+<script type="module" src="{{ url_for('static', filename='js/honeycomb.js') }}"></script>
 </body>
 </html>

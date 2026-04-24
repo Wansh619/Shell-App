@@ -85,3 +85,87 @@
     --normal-text : var(--opposite-theme-shade-1);
 
 }
+
+ /* ---------------------------------------SHADE LEVEL ATTRIBS------------------------ */
+/* ==========BACKGROUND============== */
+
+.bg-shade-1{
+    background: var(--theme-shade-1)  !important;
+}
+.bg-shade-2{
+     background: var(--theme-shade-2)  !important;
+}
+
+.bg-shade-3{
+    background: var(--dark-shade-3) !important;
+}
+.bg-shade-4{
+    background: var(--dark-shade-4) !important;
+}
+
+.bg-shade-5{
+    background: var(--theme-shade-5) !important;
+}
+.bg-shade-6{
+     background: var(--theme-shade-6) !important;
+}
+
+.bg-shade-7{
+    background: var(--dark-shade-7) !important;
+}
+
+.bg-shade-8{
+    background: var(--dark-shade-8) !important;
+}
+
+.bg-shade-9{
+    background: var(--dark-shade-9) !important;
+}
+
+.bg-shade-10{
+    background: var(--dark-shade-9) !important;
+}
+
+ /* FONT  */
+.fs-1 { font-size :4  !important; };
+.fs-2 { font-size :8  !important; };
+.fs-3 { font-size :12  !important; };
+.fs-4 { font-size :16  !important; };
+.fs-5 { font-size :20  !important; };
+.fs-6 { font-size :24  !important; };
+.fs-7 { font-size :28  !important; };
+.fs-8 { font-size :32  !important; };
+.fs-9 { font-size :36  !important; };
+.fs-10 { font-size :40 !important;  };
+
+/* ==================PADDING=============== */
+.p-0 { padding :0 !important};
+.p-1 { padding :4 !important};
+.p-2 { padding :8 !important};
+.p-3 { padding :12 !important};
+.p-4 { padding :16 !important};
+.p-5 { padding :20 !important};
+.p-6 { padding :24 !important};
+.p-7 { padding :28 !important};
+.p-8 { padding :32 !important};
+.p-9 { padding :36 !important};
+.p-10 { padding :40 !important};
+/* ======================CARDS===================== */
+
+.card{
+border-radius: 8px;
+box-sizing: border-box;
+box-shadow: ;
+
+}
+
+
+
+@keyframes pop_in {
+  from {
+    transform: scale(0) rotateX(-90deg);
+  }
+  to {
+    transform: scale(1) rotateX(0deg);
+  }
+}
