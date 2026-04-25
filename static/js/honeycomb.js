@@ -2,7 +2,7 @@ import Icon from "./utils/icon.js";
 
 const starterMenus = [
     { name: "Home", icon: "home.svg", iframeurl: "#" },
-    { name: "Terminal", icon: "home.svg", iframeurl: "#" },
+    { name: "Terminal", icon: "home.svg", iframeurl: "/home/wansh/Desktop/Shell App/templates/terminal.html" },
     { name: "Sessions", icon: "home.svg", iframeurl: "#" },
     { name: "Settings", icon: "home.svg", iframeurl: "#" },
     { name: "About", icon: "home.svg", iframeurl: "#" },
@@ -150,13 +150,12 @@ class HomeyComb {
         content.appendChild(iconWrap);
 
         if (role === "theme") {
-            iconWrap.innerHTML = `<i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i>`;
         } else if (role === "menu") {
             const iconObj = new Icon(`/static/images/${icon}`, {
                 className: "hex-icon-wrapper",
                 svgClassName: "hex-icon-svg",
                 size: 28,
-                attrs: { "aria-hidden": "true" },
+         
             });
             try {
                 await iconObj.render(iconWrap);

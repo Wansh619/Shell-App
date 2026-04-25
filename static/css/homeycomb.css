@@ -1,4 +1,4 @@
-/* Honeycomb menu UI (palette from variable.css via index.css import chain) */
+/* Honeycomb menu UI */
 
 #container {
   min-height: 100vh;
@@ -14,11 +14,11 @@
   inset: 0;
   z-index: 2;
   pointer-events: auto;
+  transform: translate(-15%, -20%);
 }
 
 .hex-cell {
   position: absolute;
-  inset: auto;
   border: none;
   background: transparent;
   padding: 0;
@@ -27,11 +27,10 @@
 
 .hex-surface {
   position: absolute;
-  inset: 2px; /* gap size (shows glow through) */
+  inset: 2px;
   background: var(--theme-shade-2);
   border: 1px solid color-mix(in srgb, var(--normal-text) 18%, transparent);
   border-radius: 8px;
-  opacity: 1;
   clip-path: polygon(
     50% 0%,
     100% 25%,
@@ -40,14 +39,14 @@
     0% 75%,
     0% 25%
   );
-  transition: background 0.35s ease, border-color 0.35s ease, color 0.35s ease;
+  transition: background 0.35s ease, border-color 0.35s ease;
   color: var(--normal-text);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Mouse-follow glow */
+/* Glow */
 .homeycomb-glow {
   position: absolute;
   z-index: 1;
@@ -66,19 +65,28 @@
   transition: background 0.35s ease;
 }
 
-/* Slots */
+/* Clickable cells */
 .hex-cell[data-role="menu"],
 .hex-cell[data-role="theme"] {
   cursor: pointer;
   z-index: 6;
 }
 
+/* Hover background */
 .hex-cell[data-role="menu"]:hover .hex-surface,
 .hex-cell[data-role="theme"]:hover .hex-surface {
-  background: var(--theme-shade-1);
+  background: var(--opposite-theme-shade-1);
   border-color: color-mix(in srgb, var(--normal-text) 45%, transparent);
+
+  color: var(--theme-shade-1);
+  .hex-icon-svg * {
+    fill: var(--theme-shade-1);
+    stroke: var(--theme-shade-1);
+  }
+  
 }
 
+/* Content */
 .hex-content {
   display: flex;
   flex-direction: column;
@@ -89,22 +97,6 @@
   text-align: center;
 }
 
-.hex-icon {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--normal-text) 10%, transparent);
-  color: var(--normal-text);
-  transition: background 0.35s ease, color 0.35s ease;
-}
-
-.hex-icon-wrapper svg,
-.hex-icon i {
-  color: currentColor;
-}
-
 .hex-label {
   font-family: var(--font-family);
   font-size: 0.9rem;
@@ -112,18 +104,39 @@
   line-height: 1.1;
 }
 
-/* Center theme toggle: always opposite of current theme */
+/* ========================= */
+/* 🔥 SVG ICON SYSTEM */
+/* ========================= */
+
+/* Apply to ALL svg children */
+.hex-icon-svg * {
+  fill: var(--opposite-theme-shade-1);
+  stroke: var(--opposite-theme-shade-1);
+  transition: fill 0.3s ease, stroke 0.3s ease, transform 0.25s ease;
+}
+
+
+
+/* Theme toggle (center hex) */
 .hex-cell.hex-theme-toggle .hex-surface {
   background: var(--opposite-theme-shade-2);
   color: var(--theme-shade-1);
   border-color: var(--opposite-theme-shade-1);
 }
 
+/* Theme hover */
+
+
 .hex-cell.hex-theme-toggle:hover .hex-surface {
   background: var(--opposite-theme-shade-3);
 }
 
-/* Fullscreen open state */
+
+
+/* ========================= */
+/* FULLSCREEN MODE */
+/* ========================= */
+
 .hex-cell.is-open {
   left: 50% !important;
   top: 50% !important;

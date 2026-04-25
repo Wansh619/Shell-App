@@ -1,11 +1,9 @@
 class Icon {
     /**
-     * @param {string} iconPath Path under /static/images/...
+     * @param {string} iconPath
      * @param {{
      *  className?: string,
      *  svgClassName?: string,
-     *  attrs?: Record<string, string>,
-     *  style?: Partial<CSSStyleDeclaration>,
      *  size?: number,
      * }} [options]
      */
@@ -14,45 +12,77 @@ class Icon {
         this.options = options;
     }
 
+    static svgCache = new Map();
+
     async _fetchSvgText() {
+        if (Icon.svgCache.has(this.iconPath)) {
+            return Icon.svgCache.get(this.iconPath);
+        }
+
         const res = await fetch(this.iconPath);
         if (!res.ok) {
             throw new Error(`Failed to load icon: ${this.iconPath}`);
         }
-        return await res.text();
+
+        const text = await res.text();
+        Icon.svgCache.set(this.iconPath, text);
+        return text;
     }
 
-    /**
-     * Returns a wrapper <span> containing the inline <svg>.
-     */
+    // 🔥 Apply styles DIRECTLY to children
+    _processSvg(svg) {
+        const { fill, stroke } = this.options;
+
+        const elements = svg.querySelectorAll("*");
+
+        elements.forEach(el => {
+            // ❌ remove inline attributes
+            el.removeAttribute("fill");
+            el.removeAttribute("stroke");
+        });
+
+        return svg;
+    }
+
     async buildElement() {
         const svgText = await this._fetchSvgText();
+
         const wrapper = document.createElement("span");
         wrapper.className = this.options.className || "icon-wrapper";
 
-        // Parse SVG into DOM
         const parser = new DOMParser();
         const doc = parser.parseFromString(svgText, "image/svg+xml");
-        const svg = doc.querySelector("svg");
+        let svg = doc.querySelector("svg");
+
         if (!svg) {
             throw new Error(`Invalid SVG: ${this.iconPath}`);
         }
 
+        // SVG classes
         if (this.options.svgClassName) {
-            svg.classList.add(...this.options.svgClassName.split(/\s+/).filter(Boolean));
+            svg.classList.add(
+                ...this.options.svgClassName.split(/\s+/).filter(Boolean)
+            );
         }
 
-        // Ensure size + themeability through currentColor
+        // Size(
         const size = this.options.size || 24;
-        svg.setAttribute("width", String(size));
-        svg.setAttribute("height", String(size));
+        svg.setAttribute("width", size);
+        svg.setAttribute("height", size);
 
-        // Prefer currentColor where possible (won't override explicit fills inside SVG)
-        svg.style.color = "currentColor";
+        // 🔥 Apply child-level styles
+        svg.removeAttribute('fill')
+        svg.removeAttribute('stroke')
+        svg = this._processSvg(svg);
 
+        // Extra attributes
         if (this.options.attrs) {
-            Object.entries(this.options.attrs).forEach(([k, v]) => svg.setAttribute(k, v));
+            Object.entries(this.options.attrs).forEach(([k, v]) =>
+                svg.setAttribute(k, v)
+            );
         }
+
+        // Extra styles (applies to SVG root only)
         if (this.options.style) {
             Object.assign(svg.style, this.options.style);
         }
