@@ -1,6 +1,7 @@
 from quart import Quart, websocket, render_template, jsonify
 import json
 from term import TerminalSession
+from utils.logging import logger
 from session_store import (
     init_db,
     create_session,
@@ -61,8 +62,8 @@ async def terminal():
                     sessions[session_id] = session
                     try:
                         create_session(session_id)
-                    except Exception as error:
-                        print(f"Failed to create DB session record: {error}")
+                    except Exception:
+                        logger.exception("Failed to create DB session record")
                     await session.start()
                     continue
 
@@ -73,8 +74,8 @@ async def terminal():
                     sessions.pop(session_id, None)
                     try:
                         delete_session(session_id)
-                    except Exception as error:
-                        print(f"Failed to delete DB session record: {error}")
+                    except Exception:
+                        logger.exception("Failed to delete DB session record")
                     continue
 
                 continue
@@ -86,7 +87,7 @@ async def terminal():
             if isinstance(value, str):
                 await session.write(value)
     except Exception:
-        print("Client disconnected")
+        logger.info("Client disconnected")
     finally:
         for session_id, session in list(client_sessions.items()):
             try:
@@ -96,8 +97,8 @@ async def terminal():
             sessions.pop(session_id, None)
             try:
                 delete_session(session_id)
-            except Exception as error:
-                print(f"Failed to delete DB session record: {error}")
+            except Exception:
+                logger.exception("Failed to delete DB session record")
         client_sessions.clear()
 
 
