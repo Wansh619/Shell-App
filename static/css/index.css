@@ -1,94 +1,19 @@
 @import url(variable.css);
 @import url(navbar.css);
-
+@import url(homeycomb.css);
 html{
-background: var(--page-background);
 color : var(--normal-text);
 }
 body {
     padding: 0px;
     margin: 0px;
-    background: transparent;
-}
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
 }
 
-button{
-    color: var(--normal-text) !important;
-}
+#container{
+  position: relative; /* 🔥 required */
+  width: 100%;
 
-.section{
-    margin: 0px 56px;
-    padding: 120px 0px;
-    position: relative;
-}
-
-
-
-.card{
-    border-radius: 8px;
-    box-shadow: 0px 0px 20px var(--normal-text);
-    padding: 24px;
-}
-
-.terminal-session-panel{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-}
-
-.terminal-tabs{
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.terminal-tab{
-    border: 1px solid var(--normal-text);
-    background: transparent;
-    color: var(--normal-text);
-    border-radius: 6px;
-    padding: 6px 10px;
-    cursor: pointer;
-}
-
-.terminal-tab.active{
-    background: var(--normal-text);
-    color: var(--page-background);
-}
-
-.terminal-tab-close{
-    margin-left: 8px;
-    border: none;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-}
-
-.new-terminal-tab{
-    border: 1px solid var(--normal-text);
-    background: transparent;
-    border-radius: 6px;
-    padding: 6px 10px;
-    cursor: pointer;
-}
-
-.terminal-panel-container{
-    min-height: 320px;
-}
-
-.terminal-pane{
-    display: none;
-}
-
-.terminal-pane.active{
-    display: block;
+  height: 100vh;
+  overflow: hidden;
+  background: black;
 }

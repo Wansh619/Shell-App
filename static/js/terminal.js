@@ -235,5 +235,11 @@ newTabButton.addEventListener("click", createSessionTab);
 window.addEventListener("beforeunload", closeAllSockets);
 window.addEventListener("pagehide", closeAllSockets);
 
-connectSocket();
-createSessionTab();
+window.initTerminalUI = function initTerminalUI() {
+    if (window.__terminalUiInitialized) {
+        return;
+    }
+    window.__terminalUiInitialized = true;
+    connectSocket();
+    createSessionTab();
+};
