@@ -69,3 +69,24 @@ def test_error_log_contains_errors_and_critical(log_directory):
     assert "critical-event" in contents
     for message in ("debug-event", "info-event", "warning-event"):
         assert message not in contents
+
+
+def test_default_log_directory_uses_user_state_directory(tmp_path):
+    environment = os.environ.copy()
+    environment.pop("SHELL_APP_LOG_DIR", None)
+    environment["XDG_STATE_HOME"] = str(tmp_path)
+    script = """
+from utils.logging import logger
+
+logger.info("default-log-directory")
+"""
+    subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=PROJECT_ROOT,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert (tmp_path / "shell_app" / "log" / "debug.log").exists()

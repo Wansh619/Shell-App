@@ -1,9 +1,6 @@
 <!DOCTYPE html>
-<html>
+<html class="dark">
 <head>
-
-<link rel="stylesheet"
-href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
@@ -20,12 +17,6 @@ href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
     </div>
 
 
-<!-- {% include "home.html" %}
-<section id="terminal-section" class="section section-terminal">
-    {% include "terminal.html" %}
-</section> -->
-
-
-<script type="module" src="{{ url_for('static', filename='js/honeycomb.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/honeycomb.js', v='theme-sync-1') }}"></script>
 </body>
 </html>

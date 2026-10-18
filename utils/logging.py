@@ -1,9 +1,13 @@
 import logging
 import os
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 
-LOG_DIR = os.environ.get("SHELL_APP_LOG_DIR", "/var/log/shell_app/log")
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+LOG_DIR = Path(
+    os.environ.get("SHELL_APP_LOG_DIR", STATE_DIR / "shell_app" / "log")
+)
 
 
 class ExactLevelFilter(logging.Filter):
@@ -20,7 +24,7 @@ def configure_logging():
     if logger.handlers:
         return logger
 
-    os.makedirs(LOG_DIR, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
 
@@ -35,7 +39,7 @@ def configure_logging():
     )
     for filename, level, exact_level in handlers:
         handler = RotatingFileHandler(
-            os.path.join(LOG_DIR, filename),
+            LOG_DIR / filename,
             maxBytes=5 * 1024 * 1024,
             backupCount=3,
         )
