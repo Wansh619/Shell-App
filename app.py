@@ -2,9 +2,9 @@ import asyncio
 import json
 import signal
 
-from quart import Quart, websocket, render_template, jsonify
+from quart import Quart, websocket, render_template, jsonify, request
 from term import TerminalSession
-from utils.logging import logger
+from utils.logging import LOG_DIR, LOG_FILES, logger
 from session_store import (
     init_db,
     create_session,
@@ -17,6 +17,7 @@ app = Quart(__name__)
 
 sessions = {}
 active_terminal_tasks = set()
+MAX_LOG_READ_BYTES = 64 * 1024
 
 
 @app.before_serving
@@ -24,6 +25,7 @@ async def startup():
     init_db()
     # Remove stale rows from previous unclean exits.
     clear_sessions()
+    logger.info("Shell App started; log files are stored in %s", LOG_DIR)
 
 
 @app.after_serving
@@ -103,6 +105,7 @@ async def terminal():
                         logger.exception("Failed to create DB session record")
                     try:
                         await session.start()
+                        logger.info("Terminal session started: %s", session_id)
                         await websocket.send(
                             json.dumps(
                                 {
@@ -136,6 +139,7 @@ async def terminal():
                     session = client_sessions.pop(session_id, None)
                     if session:
                         await session.close()
+                        logger.info("Terminal session closed: %s", session_id)
                     sessions.pop(session_id, None)
                     try:
                         delete_session(session_id)
@@ -159,6 +163,8 @@ async def terminal():
                 await session.close()
             except Exception:
                 logger.exception("Failed to close terminal session after disconnect")
+            else:
+                logger.info("Terminal session closed after disconnect: %s", session_id)
             sessions.pop(session_id, None)
             try:
                 delete_session(session_id)
@@ -190,6 +196,48 @@ async def get_sessions():
         return jsonify(data), 200
     except Exception as error:
         return jsonify({"error": f"Failed to fetch sessions: {error}"}), 500
+
+
+@app.route("/logs/<log_type>")
+async def get_log_updates(log_type):
+    filename = LOG_FILES.get(log_type)
+    if filename is None:
+        return jsonify({"error": "Unknown log file."}), 404
+
+    try:
+        offset = int(request.args.get("offset", "0"))
+        if offset < 0:
+            raise ValueError
+    except ValueError:
+        return jsonify({"error": "Invalid log offset."}), 400
+
+    generation = request.args.get("generation", "")
+    path = LOG_DIR / filename
+    try:
+        stat = path.stat()
+        current_generation = f"{stat.st_dev}:{stat.st_ino}"
+        reset = generation != current_generation or offset > stat.st_size
+        if reset:
+            offset = max(0, stat.st_size - MAX_LOG_READ_BYTES)
+
+        with path.open("rb") as log_file:
+            log_file.seek(offset)
+            if reset and offset:
+                log_file.readline(MAX_LOG_READ_BYTES)
+            content = log_file.read(MAX_LOG_READ_BYTES)
+            next_offset = log_file.tell()
+
+        return jsonify(
+            {
+                "content": content.decode("utf-8", errors="replace"),
+                "offset": next_offset,
+                "generation": current_generation,
+                "reset": reset,
+            }
+        )
+    except OSError:
+        logger.exception("Failed to read application log file")
+        return jsonify({"error": "Unable to read application log file."}), 500
 
 
 async def run_server(host="127.0.0.1", port=5000):

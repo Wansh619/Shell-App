@@ -6,7 +6,7 @@ const starterMenus = [
     { name: "Platform", icon: "platform.svg", iframeurl: "/console" },
     { name: "Browser", icon: "browser.svg", iframeurl: "#" },
     { name: "Console", icon: "console.svg", iframeurl: "/console" },
-    { name: "About", icon: "home.svg", iframeurl: "#" },
+    { name: "Debug", icon: "bug.svg", view: "debug" },
 ];
 
 function shuffle(array) {
@@ -25,6 +25,8 @@ class HomeyComb {
         this.hoverShadow = document.createElement("div");
         this.activeHex = null;
         this.activeOverlay = null;
+        this.minimizedOverlays = new Map();
+        this.transitioning = false;
         this.mouse = { x: 0, y: 0 };
         this.glow = { x: 0, y: 0 };
         this.rafId = null;
@@ -199,7 +201,8 @@ class HomeyComb {
 
         const ringCoords = this._neighbors(centerR, centerC).slice(0, 6);
         const menus = shuffle(this.menus);
-        this._menuMapping = menus.slice(0, ringCoords.length);
+        this._menuMapping = this._menuMapping || menus.slice(0, ringCoords.length);
+        this._menuMapping = this._menuMapping.slice(0, ringCoords.length);
 
         // 🔥 Theme center WITH ICON
         await this._setCellContent(centerCell, {
@@ -225,8 +228,28 @@ class HomeyComb {
         toggleTheme();
     }
 
-    _openMenu(hexSlot, item) {
-        if (this.activeHex) this._closeActive();
+    async _openMenu(hexSlot, item) {
+        if (this.transitioning) return;
+        if (this.activeOverlay) await this._closeActive();
+
+        const minimizedOverlay = this.minimizedOverlays.get(item.name);
+        if (minimizedOverlay) {
+            this.minimizedOverlays.delete(item.name);
+            this.activeHex = hexSlot;
+            this.activeOverlay = minimizedOverlay;
+            minimizedOverlay.hidden = false;
+            minimizedOverlay.inert = false;
+            minimizedOverlay.setAttribute("aria-hidden", "false");
+            minimizedOverlay.setAttribute("aria-modal", "true");
+            minimizedOverlay.querySelectorAll("button").forEach((button) => {
+                button.disabled = false;
+            });
+            this.transitioning = true;
+            await this._animatePanelToTile(minimizedOverlay, hexSlot, true);
+            this.transitioning = false;
+            minimizedOverlay.querySelector(".hex-minimize").focus();
+            return;
+        }
 
         this.activeHex = hexSlot;
 
@@ -235,6 +258,8 @@ class HomeyComb {
         overlay.setAttribute("role", "dialog");
         overlay.setAttribute("aria-modal", "true");
         overlay.setAttribute("aria-label", `${item.name} panel`);
+        overlay.hexSlot = hexSlot;
+        overlay.menuItem = item;
 
         const header = document.createElement("header");
         header.className = "hex-panel-header";
@@ -242,31 +267,244 @@ class HomeyComb {
         const title = document.createElement("strong");
         title.textContent = item.name;
 
+        const controls = document.createElement("div");
+        controls.className = "hex-window-controls";
+
+        const minimizeButton = document.createElement("button");
+        minimizeButton.className = "hex-minimize";
+        minimizeButton.type = "button";
+        minimizeButton.textContent = "−";
+        minimizeButton.setAttribute("aria-label", `Minimize ${item.name} to its tile`);
+        minimizeButton.title = "Minimize to tile";
+        minimizeButton.addEventListener("click", () => this._minimizeActive());
+
         const closeButton = document.createElement("button");
         closeButton.className = "hex-close";
         closeButton.type = "button";
         closeButton.textContent = "×";
         closeButton.setAttribute("aria-label", `Close ${item.name} panel`);
         closeButton.addEventListener("click", () => this._closeActive());
-        header.append(title, closeButton);
+        controls.append(minimizeButton, closeButton);
+        header.append(title, controls);
 
-        const iframe = document.createElement("iframe");
-        iframe.className = "hex-iframe";
-        iframe.src = item.iframeurl || "#";
-        iframe.title = `${item.name} panel`;
+        if (item.view === "debug") {
+            overlay.cleanup = this._renderDebugPanel(overlay);
+        } else {
+            const iframe = document.createElement("iframe");
+            iframe.className = "hex-iframe";
+            iframe.src = item.iframeurl || "#";
+            iframe.title = `${item.name} panel`;
+            overlay.append(iframe);
+        }
 
-        overlay.append(header, iframe);
+        overlay.prepend(header);
         document.body.append(overlay);
         this.activeOverlay = overlay;
+        this.transitioning = true;
+        await this._animatePanelToTile(overlay, hexSlot, true);
+        this.transitioning = false;
         closeButton.focus();
     }
 
-    _closeActive() {
-        if (!this.activeOverlay) return;
-        this.activeOverlay.remove();
+    async _animatePanelToTile(overlay, hexSlot, restoring) {
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+        const rect = hexSlot.getBoundingClientRect();
+        const scaleX = rect.width / window.innerWidth;
+        const scaleY = rect.height / window.innerHeight;
+        const translateX = rect.left + rect.width / 2 - window.innerWidth / 2;
+        const translateY = rect.top + rect.height / 2 - window.innerHeight / 2;
+        const fullSize = {
+            transform: "translate3d(0, 0, 0) scale(1, 1)",
+            clipPath: "inset(0)",
+            opacity: 1,
+        };
+        const tileSize = {
+            transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scaleX}, ${scaleY})`,
+            clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+            opacity: 0.35,
+        };
+
+        overlay.panelAnimation?.cancel();
+        const animation = overlay.animate(
+            restoring ? [tileSize, fullSize] : [fullSize, tileSize],
+            {
+                duration: 420,
+                easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+                fill: "both",
+            }
+        );
+        overlay.panelAnimation = animation;
+        try {
+            await animation.finished;
+        } catch (error) {
+            if (error.name !== "AbortError") throw error;
+        }
+    }
+
+    async _minimizeActive() {
+        const overlay = this.activeOverlay;
+        if (!overlay || this.transitioning) return;
+        const hexSlot = this.activeHex;
+
+        this.transitioning = true;
         this.activeOverlay = null;
-        this.activeHex?.focus();
         this.activeHex = null;
+        this.minimizedOverlays.set(overlay.menuItem.name, overlay);
+        overlay.setAttribute("aria-hidden", "true");
+        overlay.setAttribute("aria-modal", "false");
+        overlay.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+        });
+
+        await this._animatePanelToTile(overlay, hexSlot, false);
+        overlay.hidden = true;
+        overlay.inert = true;
+        this.transitioning = false;
+        hexSlot.focus();
+    }
+
+    _renderDebugPanel(overlay) {
+        const panel = document.createElement("div");
+        panel.className = "debug-panel";
+
+        const toolbar = document.createElement("div");
+        toolbar.className = "debug-toolbar";
+
+        const label = document.createElement("label");
+        label.htmlFor = "debug-log-file";
+        label.textContent = "Log file";
+
+        const select = document.createElement("select");
+        select.id = "debug-log-file";
+        select.className = "debug-log-select";
+        for (const [value, text] of [
+            ["debug", "Debug (all levels)"],
+            ["warning", "Warning"],
+            ["error", "Error"],
+        ]) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = text;
+            select.append(option);
+        }
+
+        const status = document.createElement("span");
+        status.className = "debug-log-status";
+        status.setAttribute("role", "status");
+        status.textContent = "Connecting...";
+
+        const output = document.createElement("pre");
+        output.className = "debug-log-output";
+        output.setAttribute("role", "log");
+        output.setAttribute("aria-label", "Live application logs");
+        output.textContent = "Waiting for log entries...";
+
+        toolbar.append(label, select, status);
+        panel.append(toolbar, output);
+        overlay.append(panel);
+
+        let offset = 0;
+        let generation = "";
+        let stopped = false;
+        let polling = false;
+        let hasOutput = false;
+        let requestToken = 0;
+        let controller = null;
+
+        const poll = async () => {
+            if (stopped || polling) return;
+            polling = true;
+            const token = ++requestToken;
+            const selectedLog = select.value;
+            controller = new AbortController();
+            const query = new URLSearchParams({
+                offset: String(offset),
+                generation,
+            });
+
+            try {
+                const response = await fetch(
+                    `/logs/${encodeURIComponent(selectedLog)}?${query}`,
+                    { signal: controller.signal }
+                );
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || "Unable to read log file.");
+                }
+                if (stopped || token !== requestToken) return;
+
+                if (result.reset) {
+                    offset = 0;
+                    output.textContent = "";
+                    hasOutput = false;
+                }
+                generation = result.generation;
+                offset = result.offset;
+
+                if (result.content) {
+                    const current = hasOutput ? output.textContent : "";
+                    const lines = `${current}${result.content}`.split("\n");
+                    output.textContent = lines.slice(-2000).join("\n");
+                    hasOutput = true;
+                    output.scrollTop = output.scrollHeight;
+                } else if (!hasOutput) {
+                    output.textContent = "No log entries yet.";
+                }
+
+                status.textContent = `Live · ${selectedLog}.log`;
+            } catch (error) {
+                if (error.name !== "AbortError" && !stopped && token === requestToken) {
+                    status.textContent = `Log stream error: ${error.message}`;
+                }
+            } finally {
+                if (token === requestToken) {
+                    polling = false;
+                    controller = null;
+                }
+            }
+        };
+
+        const intervalId = window.setInterval(poll, 1000);
+        select.addEventListener("change", () => {
+            requestToken++;
+            controller?.abort();
+            polling = false;
+            controller = null;
+            offset = 0;
+            generation = "";
+            hasOutput = false;
+            output.textContent = "Loading log entries...";
+            poll();
+        });
+        poll();
+
+        return () => {
+            stopped = true;
+            window.clearInterval(intervalId);
+            controller?.abort();
+        };
+    }
+
+    async _closeActive() {
+        const overlay = this.activeOverlay;
+        const hexSlot = this.activeHex;
+        if (!overlay || this.transitioning) return;
+
+        this.transitioning = true;
+        this.activeOverlay = null;
+        this.activeHex = null;
+        overlay.setAttribute("aria-hidden", "true");
+        overlay.setAttribute("aria-modal", "false");
+        overlay.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+        });
+
+        await this._animatePanelToTile(overlay, hexSlot, false);
+        overlay.cleanup?.();
+        overlay.remove();
+        this.transitioning = false;
+        if (!this.activeOverlay) hexSlot?.focus();
     }
 
     _bindGlow(container) {

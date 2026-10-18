@@ -144,6 +144,10 @@
   color: var(--normal-text);
 }
 
+.hex-panel-overlay[hidden] {
+  display: none;
+}
+
 .hex-panel-header {
   display: flex;
   flex: 0 0 58px;
@@ -153,6 +157,13 @@
   border-bottom: 1px solid color-mix(in srgb, var(--normal-text) 18%, transparent);
 }
 
+.hex-window-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hex-minimize,
 .hex-close {
   border: 1px solid color-mix(in srgb, var(--normal-text) 35%, transparent);
   background: var(--theme-shade-1);
@@ -166,6 +177,12 @@
   transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
 }
 
+.hex-minimize {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.hex-minimize:hover,
 .hex-close:hover {
   transform: scale(1.04);
   border-color: color-mix(in srgb, var(--normal-text) 55%, transparent);
@@ -177,6 +194,64 @@
   min-height: 0;
   border: 0;
   background: var(--theme-shade-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hex-close,
+  .hex-minimize {
+    transition-duration: 0.01ms;
+  }
+}
+
+.debug-panel {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: 14px;
+  gap: 10px;
+  background: var(--theme-shade-1);
+}
+
+.debug-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--normal-text);
+  font-family: var(--font-family);
+  font-size: 13px;
+}
+
+.debug-log-select {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--normal-text) 25%, transparent);
+  border-radius: 6px;
+  background: var(--theme-shade-2);
+  color: var(--normal-text);
+  font: inherit;
+}
+
+.debug-log-status {
+  margin-left: auto;
+  color: color-mix(in srgb, var(--normal-text) 65%, transparent);
+  overflow-wrap: anywhere;
+}
+
+.debug-log-output {
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--normal-text) 16%, transparent);
+  border-radius: 6px;
+  background: var(--theme-shade-2);
+  color: var(--normal-text);
+  font: 12px/1.55 "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 
