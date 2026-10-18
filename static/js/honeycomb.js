@@ -1,10 +1,11 @@
 import Icon from "./utils/icon.js";
+import { initializeTheme, toggleTheme } from "./utils/theme.js";
 
 const starterMenus = [
     { name: "Home", icon: "home.svg", iframeurl: "#" },
-    { name: "Platform", icon: "platform.svg", iframeurl: "/home/wansh/Desktop/Shell App/templates/terminal.html" },
+    { name: "Platform", icon: "platform.svg", iframeurl: "/console" },
     { name: "Browser", icon: "browser.svg", iframeurl: "#" },
-    { name: "Console", icon: "console.svg", iframeurl: "#" },
+    { name: "Console", icon: "console.svg", iframeurl: "/console" },
     { name: "About", icon: "home.svg", iframeurl: "#" },
 ];
 
@@ -23,6 +24,7 @@ class HomeyComb {
         this.bg = document.createElement("div");
         this.hoverShadow = document.createElement("div");
         this.activeHex = null;
+        this.activeOverlay = null;
         this.mouse = { x: 0, y: 0 };
         this.glow = { x: 0, y: 0 };
         this.rafId = null;
@@ -32,6 +34,7 @@ class HomeyComb {
     }
 
     render(container) {
+        initializeTheme();
         container.innerHTML = "";
         container.style.position = "relative";
 
@@ -53,6 +56,11 @@ class HomeyComb {
             this._assignCenterAndRing();
         };
         window.addEventListener("resize", this._onResize);
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && this.activeOverlay) {
+                this._closeActive();
+            }
+        });
     }
 
     _renderBackground(container) {
@@ -214,26 +222,50 @@ class HomeyComb {
     }
 
     _toggleTheme(e) {
-        document.documentElement.classList.toggle("dark");
+        toggleTheme();
     }
 
     _openMenu(hexSlot, item) {
         if (this.activeHex) this._closeActive();
 
-        hexSlot.classList.add("is-open");
         this.activeHex = hexSlot;
+
+        const overlay = document.createElement("section");
+        overlay.className = "hex-panel-overlay";
+        overlay.setAttribute("role", "dialog");
+        overlay.setAttribute("aria-modal", "true");
+        overlay.setAttribute("aria-label", `${item.name} panel`);
+
+        const header = document.createElement("header");
+        header.className = "hex-panel-header";
+
+        const title = document.createElement("strong");
+        title.textContent = item.name;
+
+        const closeButton = document.createElement("button");
+        closeButton.className = "hex-close";
+        closeButton.type = "button";
+        closeButton.textContent = "×";
+        closeButton.setAttribute("aria-label", `Close ${item.name} panel`);
+        closeButton.addEventListener("click", () => this._closeActive());
+        header.append(title, closeButton);
 
         const iframe = document.createElement("iframe");
         iframe.className = "hex-iframe";
         iframe.src = item.iframeurl || "#";
+        iframe.title = `${item.name} panel`;
 
-        hexSlot.appendChild(iframe);
+        overlay.append(header, iframe);
+        document.body.append(overlay);
+        this.activeOverlay = overlay;
+        closeButton.focus();
     }
 
     _closeActive() {
-        if (!this.activeHex) return;
-        this.activeHex.classList.remove("is-open");
-        this.activeHex.querySelector("iframe")?.remove();
+        if (!this.activeOverlay) return;
+        this.activeOverlay.remove();
+        this.activeOverlay = null;
+        this.activeHex?.focus();
         this.activeHex = null;
     }
 
