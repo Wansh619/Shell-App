@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import signal
 
 from quart import Quart, websocket, render_template, jsonify, request
@@ -180,6 +181,11 @@ async def index():
     return await render_template("index.html")
 
 
+@app.route("/health")
+async def health():
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route("/console")
 async def console():
     return await render_template("console.html")
@@ -240,7 +246,12 @@ async def get_log_updates(log_type):
         return jsonify({"error": "Unable to read application log file."}), 500
 
 
-async def run_server(host="127.0.0.1", port=5000):
+async def run_server(
+    host=None,
+    port=None,
+):
+    host = host or os.environ.get("SHELL_APP_HOST", "127.0.0.1")
+    port = port or int(os.environ.get("SHELL_APP_PORT", "5000"))
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
 
@@ -257,7 +268,7 @@ async def run_server(host="127.0.0.1", port=5000):
         await app.run_task(
             host=host,
             port=port,
-            debug=True,
+            debug=False,
             shutdown_trigger=shutdown_event.wait,
         )
     finally:

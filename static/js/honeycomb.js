@@ -1,12 +1,54 @@
 import Icon from "./utils/icon.js";
 import { initializeTheme, toggleTheme } from "./utils/theme.js";
+import Plugin from "./plugins/plugin.js";
+import HomePlugin from "./plugins/home/plugin.js";
+import ConsolePlugin from "./plugins/console/plugin.js";
+import DebugPlugin from "./plugins/debug/plugin.js";
 
-const starterMenus = [
-    { name: "Home", icon: "home.svg", iframeurl: "#" },
-    { name: "Platform", icon: "platform.svg", iframeurl: "/console" },
-    { name: "Browser", icon: "browser.svg", iframeurl: "#" },
-    { name: "Console", icon: "console.svg", iframeurl: "/console" },
-    { name: "Debug", icon: "bug.svg", view: "debug" },
+class PluginManager {
+    constructor(plugins = []) {
+        this.plugins = new Map();
+        this.runningPlugins = new Set();
+        plugins.forEach((plugin) => this.register(plugin));
+    }
+
+    register(plugin) {
+        if (!(plugin instanceof Plugin)) {
+            throw new TypeError("Only Plugin instances can be registered.");
+        }
+        if (this.plugins.has(plugin.name)) {
+            throw new Error(`A plugin named "${plugin.name}" is already registered.`);
+        }
+        this.plugins.set(plugin.name, plugin);
+        return plugin;
+    }
+
+    getPlugins() {
+        return Array.from(this.plugins.values());
+    }
+
+    async start(plugin, context) {
+        if (this.plugins.get(plugin.name) !== plugin) {
+            throw new Error(`Plugin "${plugin.name}" is not registered.`);
+        }
+        if (this.runningPlugins.has(plugin)) return;
+
+        await plugin.start(context);
+        this.runningPlugins.add(plugin);
+    }
+
+    async stop(plugin) {
+        if (!this.runningPlugins.has(plugin)) return;
+
+        await plugin.stop();
+        this.runningPlugins.delete(plugin);
+    }
+}
+
+const starterPlugins = [
+    new HomePlugin(),
+    new ConsolePlugin(),
+    new DebugPlugin(),
 ];
 
 function shuffle(array) {
@@ -19,8 +61,8 @@ function shuffle(array) {
 }
 
 class HomeyComb {
-    constructor(menus) {
-        this.menus = menus;
+    constructor(pluginManager) {
+        this.pluginManager = pluginManager;
         this.bg = document.createElement("div");
         this.hoverShadow = document.createElement("div");
         this.activeHex = null;
@@ -199,10 +241,13 @@ class HomeyComb {
         const centerC = Math.floor(cols / 2);
         const centerCell = cells[centerR][centerC];
 
-        const ringCoords = this._neighbors(centerR, centerC).slice(0, 6);
-        const menus = shuffle(this.menus);
-        this._menuMapping = this._menuMapping || menus.slice(0, ringCoords.length);
-        this._menuMapping = this._menuMapping.slice(0, ringCoords.length);
+        const menuCoords = this._menuCoordinates(
+            centerR,
+            centerC,
+            this.pluginManager.getPlugins().length
+        );
+        this._menuMapping = this._menuMapping ||
+            shuffle(this.pluginManager.getPlugins());
 
         // 🔥 Theme center WITH ICON
         await this._setCellContent(centerCell, {
@@ -211,8 +256,8 @@ class HomeyComb {
             icon: null,
         });
 
-        for (let i = 0; i < ringCoords.length; i++) {
-            const [rr, cc] = ringCoords[i];
+        for (let i = 0; i < menuCoords.length; i++) {
+            const [rr, cc] = menuCoords[i];
             const m = this._menuMapping[i];
 
             await this._setCellContent(cells[rr][cc], {
@@ -222,6 +267,34 @@ class HomeyComb {
                 menuIndex: i,
             });
         }
+    }
+
+    _menuCoordinates(centerR, centerC, count) {
+        const coordinates = [];
+        const queue = this._neighbors(centerR, centerC);
+        const visited = new Set([`${centerR},${centerC}`]);
+        queue.forEach(([r, c]) => visited.add(`${r},${c}`));
+
+        while (queue.length && coordinates.length < count) {
+            const [r, c] = queue.shift();
+            coordinates.push([r, c]);
+
+            for (const [neighborR, neighborC] of this._neighbors(r, c)) {
+                const neighborKey = `${neighborR},${neighborC}`;
+                if (visited.has(neighborKey)) continue;
+                visited.add(neighborKey);
+                queue.push([neighborR, neighborC]);
+            }
+        }
+
+        return coordinates;
+    }
+
+    registerPlugin(plugin) {
+        const registeredPlugin = this.pluginManager.register(plugin);
+        this._menuMapping = null;
+        if (this._grid.cells.length) this._assignCenterAndRing();
+        return registeredPlugin;
     }
 
     _toggleTheme(e) {
@@ -259,7 +332,7 @@ class HomeyComb {
         overlay.setAttribute("aria-modal", "true");
         overlay.setAttribute("aria-label", `${item.name} panel`);
         overlay.hexSlot = hexSlot;
-        overlay.menuItem = item;
+        overlay.plugin = item;
 
         const header = document.createElement("header");
         header.className = "hex-panel-header";
@@ -287,23 +360,43 @@ class HomeyComb {
         controls.append(minimizeButton, closeButton);
         header.append(title, controls);
 
-        if (item.view === "debug") {
-            overlay.cleanup = this._renderDebugPanel(overlay);
-        } else {
-            const iframe = document.createElement("iframe");
-            iframe.className = "hex-iframe";
-            iframe.src = item.iframeurl || "#";
-            iframe.title = `${item.name} panel`;
-            overlay.append(iframe);
-        }
-
         overlay.prepend(header);
         document.body.append(overlay);
         this.activeOverlay = overlay;
+
         this.transitioning = true;
-        await this._animatePanelToTile(overlay, hexSlot, true);
-        this.transitioning = false;
+        try {
+            await this.pluginManager.start(item, {
+                app: this,
+                overlay,
+                plugins: this.pluginManager.getPlugins(),
+                openPlugin: (plugin) => this._openPlugin(plugin),
+            });
+        } catch (error) {
+            this.activeOverlay = null;
+            this.activeHex = null;
+            overlay.remove();
+            this.transitioning = false;
+            throw error;
+        }
+
+        try {
+            await this._animatePanelToTile(overlay, hexSlot, true);
+        } finally {
+            this.transitioning = false;
+        }
         closeButton.focus();
+    }
+
+    _openPlugin(plugin) {
+        const menuIndex = this._menuMapping.indexOf(plugin);
+        const tile = this.bg.querySelector(
+            `.hex-cell[data-role="menu"][data-menu-index="${menuIndex}"]`
+        );
+        if (menuIndex < 0 || !tile) {
+            throw new Error(`No honeycomb tile is available for "${plugin.name}".`);
+        }
+        return this._openMenu(tile, plugin);
     }
 
     async _animatePanelToTile(overlay, hexSlot, restoring) {
@@ -350,7 +443,7 @@ class HomeyComb {
         this.transitioning = true;
         this.activeOverlay = null;
         this.activeHex = null;
-        this.minimizedOverlays.set(overlay.menuItem.name, overlay);
+        this.minimizedOverlays.set(overlay.plugin.name, overlay);
         overlay.setAttribute("aria-hidden", "true");
         overlay.setAttribute("aria-modal", "false");
         overlay.querySelectorAll("button").forEach((button) => {
@@ -364,134 +457,19 @@ class HomeyComb {
         hexSlot.focus();
     }
 
-    _renderDebugPanel(overlay) {
-        const panel = document.createElement("div");
-        panel.className = "debug-panel";
-
-        const toolbar = document.createElement("div");
-        toolbar.className = "debug-toolbar";
-
-        const label = document.createElement("label");
-        label.htmlFor = "debug-log-file";
-        label.textContent = "Log file";
-
-        const select = document.createElement("select");
-        select.id = "debug-log-file";
-        select.className = "debug-log-select";
-        for (const [value, text] of [
-            ["debug", "Debug (all levels)"],
-            ["warning", "Warning"],
-            ["error", "Error"],
-        ]) {
-            const option = document.createElement("option");
-            option.value = value;
-            option.textContent = text;
-            select.append(option);
-        }
-
-        const status = document.createElement("span");
-        status.className = "debug-log-status";
-        status.setAttribute("role", "status");
-        status.textContent = "Connecting...";
-
-        const output = document.createElement("pre");
-        output.className = "debug-log-output";
-        output.setAttribute("role", "log");
-        output.setAttribute("aria-label", "Live application logs");
-        output.textContent = "Waiting for log entries...";
-
-        toolbar.append(label, select, status);
-        panel.append(toolbar, output);
-        overlay.append(panel);
-
-        let offset = 0;
-        let generation = "";
-        let stopped = false;
-        let polling = false;
-        let hasOutput = false;
-        let requestToken = 0;
-        let controller = null;
-
-        const poll = async () => {
-            if (stopped || polling) return;
-            polling = true;
-            const token = ++requestToken;
-            const selectedLog = select.value;
-            controller = new AbortController();
-            const query = new URLSearchParams({
-                offset: String(offset),
-                generation,
-            });
-
-            try {
-                const response = await fetch(
-                    `/logs/${encodeURIComponent(selectedLog)}?${query}`,
-                    { signal: controller.signal }
-                );
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.error || "Unable to read log file.");
-                }
-                if (stopped || token !== requestToken) return;
-
-                if (result.reset) {
-                    offset = 0;
-                    output.textContent = "";
-                    hasOutput = false;
-                }
-                generation = result.generation;
-                offset = result.offset;
-
-                if (result.content) {
-                    const current = hasOutput ? output.textContent : "";
-                    const lines = `${current}${result.content}`.split("\n");
-                    output.textContent = lines.slice(-2000).join("\n");
-                    hasOutput = true;
-                    output.scrollTop = output.scrollHeight;
-                } else if (!hasOutput) {
-                    output.textContent = "No log entries yet.";
-                }
-
-                status.textContent = `Live · ${selectedLog}.log`;
-            } catch (error) {
-                if (error.name !== "AbortError" && !stopped && token === requestToken) {
-                    status.textContent = `Log stream error: ${error.message}`;
-                }
-            } finally {
-                if (token === requestToken) {
-                    polling = false;
-                    controller = null;
-                }
-            }
-        };
-
-        const intervalId = window.setInterval(poll, 1000);
-        select.addEventListener("change", () => {
-            requestToken++;
-            controller?.abort();
-            polling = false;
-            controller = null;
-            offset = 0;
-            generation = "";
-            hasOutput = false;
-            output.textContent = "Loading log entries...";
-            poll();
-        });
-        poll();
-
-        return () => {
-            stopped = true;
-            window.clearInterval(intervalId);
-            controller?.abort();
-        };
-    }
-
     async _closeActive() {
         const overlay = this.activeOverlay;
         const hexSlot = this.activeHex;
         if (!overlay || this.transitioning) return;
 
         this.transitioning = true;
+        try {
+            await this.pluginManager.stop(overlay.plugin);
+        } catch (error) {
+            this.transitioning = false;
+            throw error;
+        }
+
         this.activeOverlay = null;
         this.activeHex = null;
         overlay.setAttribute("aria-hidden", "true");
@@ -500,10 +478,12 @@ class HomeyComb {
             button.disabled = true;
         });
 
-        await this._animatePanelToTile(overlay, hexSlot, false);
-        overlay.cleanup?.();
-        overlay.remove();
-        this.transitioning = false;
+        try {
+            await this._animatePanelToTile(overlay, hexSlot, false);
+        } finally {
+            this.transitioning = false;
+            overlay.remove();
+        }
         if (!this.activeOverlay) hexSlot?.focus();
     }
 
@@ -516,4 +496,5 @@ class HomeyComb {
 }
 
 const container = document.querySelector("#container");
-new HomeyComb(starterMenus).render(container);
+const pluginManager = new PluginManager(starterPlugins);
+new HomeyComb(pluginManager).render(container);

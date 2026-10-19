@@ -1,0 +1,26 @@
+[Unit]
+Description=Shell App with Cloudflare Quick Tunnel
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/shell-app
+EnvironmentFile=/etc/shell-app/shell-app.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/shell-app/.venv/bin/python /opt/shell-app/scripts/public_service.py
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=30
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/shell-app
+
+[Install]
+WantedBy=multi-user.target
