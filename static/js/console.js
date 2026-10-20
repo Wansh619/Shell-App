@@ -1,4 +1,4 @@
-import ConsoleManager from "./components/ConsoleManager.js?v=console-theme-1";
+import ConsoleManager from "./plugins/console/components/ConsoleManager.js?v=console-plugin-components-1";
 import { initializeTheme } from "./utils/theme.js";
 
 initializeTheme();

@@ -858,11 +858,13 @@ export default class ConsoleManager {
         document.getElementById("close-pane")
             .addEventListener("click", () => this.closeActivePane());
 
-        window.addEventListener("resize", () => {
+        this.onResize = () => {
             this.panelSessions.get(this.activeSessionId)?.paneManager.fit();
-        });
-        window.addEventListener("beforeunload", () => this.close());
-        window.addEventListener("pagehide", () => this.close());
+        };
+        this.onUnload = () => this.close();
+        window.addEventListener("resize", this.onResize);
+        window.addEventListener("beforeunload", this.onUnload);
+        window.addEventListener("pagehide", this.onUnload);
 
         this.transport.connect();
         this.createPanelSession();
@@ -1015,5 +1017,17 @@ export default class ConsoleManager {
 
     close() {
         this.transport.close(Array.from(this.terminalMap.keys()));
+    }
+
+    dispose() {
+        window.removeEventListener("resize", this.onResize);
+        window.removeEventListener("beforeunload", this.onUnload);
+        window.removeEventListener("pagehide", this.onUnload);
+        for (const session of this.panelSessions.values()) {
+            session.dispose();
+        }
+        this.panelSessions.clear();
+        this.transport.close(Array.from(this.terminalMap.keys()));
+        this.terminalMap.clear();
     }
 }

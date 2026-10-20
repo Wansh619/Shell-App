@@ -14,7 +14,7 @@ def log_directory(tmp_path):
     environment = os.environ.copy()
     environment["SHELL_APP_LOG_DIR"] = str(tmp_path)
     script = """
-from utils.logging import logger
+from app.core.logging import logger
 
 logger.debug("debug-event")
 logger.info("info-event")
@@ -76,7 +76,7 @@ def test_default_log_directory_uses_user_state_directory(tmp_path):
     environment.pop("SHELL_APP_LOG_DIR", None)
     environment["XDG_STATE_HOME"] = str(tmp_path)
     script = """
-from utils.logging import logger
+from app.core.logging import logger
 
 logger.info("default-log-directory")
 """

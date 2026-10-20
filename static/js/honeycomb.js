@@ -1,12 +1,54 @@
 import Icon from "./utils/icon.js";
 import { initializeTheme, toggleTheme } from "./utils/theme.js";
+import Plugin from "./plugins/plugin.js";
+import HomePlugin from "./plugins/home/plugin.js";
+import ConsolePlugin from "./plugins/console/plugin.js";
+import DebugPlugin from "./plugins/debug/plugin.js";
 
-const starterMenus = [
-    { name: "Home", icon: "home.svg", iframeurl: "#" },
-    { name: "Platform", icon: "platform.svg", iframeurl: "/console" },
-    { name: "Browser", icon: "browser.svg", iframeurl: "#" },
-    { name: "Console", icon: "console.svg", iframeurl: "/console" },
-    { name: "About", icon: "home.svg", iframeurl: "#" },
+class PluginManager {
+    constructor(plugins = []) {
+        this.plugins = new Map();
+        this.runningPlugins = new Set();
+        plugins.forEach((plugin) => this.register(plugin));
+    }
+
+    register(plugin) {
+        if (!(plugin instanceof Plugin)) {
+            throw new TypeError("Only Plugin instances can be registered.");
+        }
+        if (this.plugins.has(plugin.name)) {
+            throw new Error(`A plugin named "${plugin.name}" is already registered.`);
+        }
+        this.plugins.set(plugin.name, plugin);
+        return plugin;
+    }
+
+    getPlugins() {
+        return Array.from(this.plugins.values());
+    }
+
+    async start(plugin, context) {
+        if (this.plugins.get(plugin.name) !== plugin) {
+            throw new Error(`Plugin "${plugin.name}" is not registered.`);
+        }
+        if (this.runningPlugins.has(plugin)) return;
+
+        await plugin.start(context);
+        this.runningPlugins.add(plugin);
+    }
+
+    async stop(plugin) {
+        if (!this.runningPlugins.has(plugin)) return;
+
+        await plugin.stop();
+        this.runningPlugins.delete(plugin);
+    }
+}
+
+const starterPlugins = [
+    new HomePlugin(),
+    new ConsolePlugin(),
+    new DebugPlugin(),
 ];
 
 function shuffle(array) {
@@ -19,12 +61,14 @@ function shuffle(array) {
 }
 
 class HomeyComb {
-    constructor(menus) {
-        this.menus = menus;
+    constructor(pluginManager) {
+        this.pluginManager = pluginManager;
         this.bg = document.createElement("div");
         this.hoverShadow = document.createElement("div");
         this.activeHex = null;
         this.activeOverlay = null;
+        this.minimizedOverlays = new Map();
+        this.transitioning = false;
         this.mouse = { x: 0, y: 0 };
         this.glow = { x: 0, y: 0 };
         this.rafId = null;
@@ -89,6 +133,7 @@ class HomeyComb {
 
                 const cellBtn = document.createElement("button");
                 cellBtn.className = "hex-cell";
+                cellBtn.type = "button";
                 cellBtn.style.width = `${hexW}px`;
                 cellBtn.style.height = `${hexH}px`;
                 cellBtn.style.transform = `translate(${x + offsetX}px, ${y}px)`;
@@ -142,6 +187,14 @@ class HomeyComb {
     async _setCellContent(cell, { role, name, icon, menuIndex }) {
         cell.dataset.role = role;
         cell.dataset.menuIndex = menuIndex ?? "";
+        cell.setAttribute("aria-label", role === "theme" ? "Toggle color theme" : name);
+        cell.title = role === "theme" ? "Toggle color theme" : name;
+        if (role === "theme") {
+            cell.setAttribute(
+                "aria-pressed",
+                String(document.documentElement.classList.contains("dark"))
+            );
+        }
 
         const surface = cell.querySelector(".hex-surface");
         surface.innerHTML = "";
@@ -159,7 +212,7 @@ class HomeyComb {
             const iconObj = new Icon(`/static/images/${icon}`, {
                 className: "hex-icon-wrapper",
                 svgClassName: `hex-icon-svg ${role === "theme" ? "theme-icon" : ""}`,
-                size: role === "theme" ? 32 : 28,
+                size: role === "theme" ? 40 : 28,
             });
 
             try {
@@ -172,7 +225,7 @@ class HomeyComb {
         const label = document.createElement("div");
         label.className = "hex-label";
         label.textContent = name;
-        content.appendChild(label);
+        if (role !== "theme") content.appendChild(label);
 
         cell.classList.toggle("hex-theme-toggle", role === "theme");
     }
@@ -197,19 +250,23 @@ class HomeyComb {
         const centerC = Math.floor(cols / 2);
         const centerCell = cells[centerR][centerC];
 
-        const ringCoords = this._neighbors(centerR, centerC).slice(0, 6);
-        const menus = shuffle(this.menus);
-        this._menuMapping = menus.slice(0, ringCoords.length);
+        const menuCoords = this._menuCoordinates(
+            centerR,
+            centerC,
+            this.pluginManager.getPlugins().length
+        );
+        this._menuMapping = this._menuMapping ||
+            shuffle(this.pluginManager.getPlugins());
 
-        // 🔥 Theme center WITH ICON
+        // Animated theme control in the center tile.
         await this._setCellContent(centerCell, {
             role: "theme",
-            name: "Theme",
-            icon: null,
+            name: "Toggle color theme",
+            icon: "theme-core.svg",
         });
 
-        for (let i = 0; i < ringCoords.length; i++) {
-            const [rr, cc] = ringCoords[i];
+        for (let i = 0; i < menuCoords.length; i++) {
+            const [rr, cc] = menuCoords[i];
             const m = this._menuMapping[i];
 
             await this._setCellContent(cells[rr][cc], {
@@ -221,12 +278,64 @@ class HomeyComb {
         }
     }
 
-    _toggleTheme(e) {
-        toggleTheme();
+    _menuCoordinates(centerR, centerC, count) {
+        const coordinates = [];
+        const queue = this._neighbors(centerR, centerC);
+        const visited = new Set([`${centerR},${centerC}`]);
+        queue.forEach(([r, c]) => visited.add(`${r},${c}`));
+
+        while (queue.length && coordinates.length < count) {
+            const [r, c] = queue.shift();
+            coordinates.push([r, c]);
+
+            for (const [neighborR, neighborC] of this._neighbors(r, c)) {
+                const neighborKey = `${neighborR},${neighborC}`;
+                if (visited.has(neighborKey)) continue;
+                visited.add(neighborKey);
+                queue.push([neighborR, neighborC]);
+            }
+        }
+
+        return coordinates;
     }
 
-    _openMenu(hexSlot, item) {
-        if (this.activeHex) this._closeActive();
+    registerPlugin(plugin) {
+        const registeredPlugin = this.pluginManager.register(plugin);
+        this._menuMapping = null;
+        if (this._grid.cells.length) this._assignCenterAndRing();
+        return registeredPlugin;
+    }
+
+    _toggleTheme(e) {
+        const theme = toggleTheme();
+        e.target.closest(".hex-cell")?.setAttribute(
+            "aria-pressed",
+            String(theme === "dark")
+        );
+    }
+
+    async _openMenu(hexSlot, item) {
+        if (this.transitioning) return;
+        if (this.activeOverlay) await this._closeActive();
+
+        const minimizedOverlay = this.minimizedOverlays.get(item.name);
+        if (minimizedOverlay) {
+            this.minimizedOverlays.delete(item.name);
+            this.activeHex = hexSlot;
+            this.activeOverlay = minimizedOverlay;
+            minimizedOverlay.hidden = false;
+            minimizedOverlay.inert = false;
+            minimizedOverlay.setAttribute("aria-hidden", "false");
+            minimizedOverlay.setAttribute("aria-modal", "true");
+            minimizedOverlay.querySelectorAll("button").forEach((button) => {
+                button.disabled = false;
+            });
+            this.transitioning = true;
+            await this._animatePanelToTile(minimizedOverlay, hexSlot, true);
+            this.transitioning = false;
+            minimizedOverlay.querySelector(".hex-minimize").focus();
+            return;
+        }
 
         this.activeHex = hexSlot;
 
@@ -235,6 +344,8 @@ class HomeyComb {
         overlay.setAttribute("role", "dialog");
         overlay.setAttribute("aria-modal", "true");
         overlay.setAttribute("aria-label", `${item.name} panel`);
+        overlay.hexSlot = hexSlot;
+        overlay.plugin = item;
 
         const header = document.createElement("header");
         header.className = "hex-panel-header";
@@ -242,31 +353,151 @@ class HomeyComb {
         const title = document.createElement("strong");
         title.textContent = item.name;
 
+        const controls = document.createElement("div");
+        controls.className = "hex-window-controls";
+
+        const minimizeButton = document.createElement("button");
+        minimizeButton.className = "hex-minimize";
+        minimizeButton.type = "button";
+        minimizeButton.textContent = "−";
+        minimizeButton.setAttribute("aria-label", `Minimize ${item.name} to its tile`);
+        minimizeButton.title = "Minimize to tile";
+        minimizeButton.addEventListener("click", () => this._minimizeActive());
+
         const closeButton = document.createElement("button");
         closeButton.className = "hex-close";
         closeButton.type = "button";
         closeButton.textContent = "×";
         closeButton.setAttribute("aria-label", `Close ${item.name} panel`);
         closeButton.addEventListener("click", () => this._closeActive());
-        header.append(title, closeButton);
+        controls.append(minimizeButton, closeButton);
+        header.append(title, controls);
 
-        const iframe = document.createElement("iframe");
-        iframe.className = "hex-iframe";
-        iframe.src = item.iframeurl || "#";
-        iframe.title = `${item.name} panel`;
-
-        overlay.append(header, iframe);
+        overlay.prepend(header);
         document.body.append(overlay);
         this.activeOverlay = overlay;
+
+        this.transitioning = true;
+        try {
+            await this.pluginManager.start(item, {
+                app: this,
+                overlay,
+                plugins: this.pluginManager.getPlugins(),
+                openPlugin: (plugin) => this._openPlugin(plugin),
+            });
+        } catch (error) {
+            this.activeOverlay = null;
+            this.activeHex = null;
+            overlay.remove();
+            this.transitioning = false;
+            throw error;
+        }
+
+        try {
+            await this._animatePanelToTile(overlay, hexSlot, true);
+        } finally {
+            this.transitioning = false;
+        }
         closeButton.focus();
     }
 
-    _closeActive() {
-        if (!this.activeOverlay) return;
-        this.activeOverlay.remove();
+    _openPlugin(plugin) {
+        const menuIndex = this._menuMapping.indexOf(plugin);
+        const tile = this.bg.querySelector(
+            `.hex-cell[data-role="menu"][data-menu-index="${menuIndex}"]`
+        );
+        if (menuIndex < 0 || !tile) {
+            throw new Error(`No honeycomb tile is available for "${plugin.name}".`);
+        }
+        return this._openMenu(tile, plugin);
+    }
+
+    async _animatePanelToTile(overlay, hexSlot, restoring) {
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+        const rect = hexSlot.getBoundingClientRect();
+        const scaleX = rect.width / window.innerWidth;
+        const scaleY = rect.height / window.innerHeight;
+        const translateX = rect.left + rect.width / 2 - window.innerWidth / 2;
+        const translateY = rect.top + rect.height / 2 - window.innerHeight / 2;
+        const fullSize = {
+            transform: "translate3d(0, 0, 0) scale(1, 1)",
+            clipPath: "inset(0)",
+            opacity: 1,
+        };
+        const tileSize = {
+            transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scaleX}, ${scaleY})`,
+            clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+            opacity: 0.35,
+        };
+
+        overlay.panelAnimation?.cancel();
+        const animation = overlay.animate(
+            restoring ? [tileSize, fullSize] : [fullSize, tileSize],
+            {
+                duration: 420,
+                easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+                fill: "both",
+            }
+        );
+        overlay.panelAnimation = animation;
+        try {
+            await animation.finished;
+        } catch (error) {
+            if (error.name !== "AbortError") throw error;
+        }
+    }
+
+    async _minimizeActive() {
+        const overlay = this.activeOverlay;
+        if (!overlay || this.transitioning) return;
+        const hexSlot = this.activeHex;
+
+        this.transitioning = true;
         this.activeOverlay = null;
-        this.activeHex?.focus();
         this.activeHex = null;
+        this.minimizedOverlays.set(overlay.plugin.name, overlay);
+        overlay.setAttribute("aria-hidden", "true");
+        overlay.setAttribute("aria-modal", "false");
+        overlay.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+        });
+
+        await this._animatePanelToTile(overlay, hexSlot, false);
+        overlay.hidden = true;
+        overlay.inert = true;
+        this.transitioning = false;
+        hexSlot.focus();
+    }
+
+    async _closeActive() {
+        const overlay = this.activeOverlay;
+        const hexSlot = this.activeHex;
+        if (!overlay || this.transitioning) return;
+
+        this.transitioning = true;
+        try {
+            await this.pluginManager.stop(overlay.plugin);
+        } catch (error) {
+            this.transitioning = false;
+            throw error;
+        }
+
+        this.activeOverlay = null;
+        this.activeHex = null;
+        overlay.setAttribute("aria-hidden", "true");
+        overlay.setAttribute("aria-modal", "false");
+        overlay.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+        });
+
+        try {
+            await this._animatePanelToTile(overlay, hexSlot, false);
+        } finally {
+            this.transitioning = false;
+            overlay.remove();
+        }
+        if (!this.activeOverlay) hexSlot?.focus();
     }
 
     _bindGlow(container) {
@@ -278,4 +509,5 @@ class HomeyComb {
 }
 
 const container = document.querySelector("#container");
-new HomeyComb(starterMenus).render(container);
+const pluginManager = new PluginManager(starterPlugins);
+new HomeyComb(pluginManager).render(container);

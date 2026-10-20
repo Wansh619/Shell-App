@@ -1,10 +1,10 @@
+import asyncio
+import fcntl
 import os
 import pty
-import asyncio
-import subprocess
-import fcntl
 import signal
 import struct
+import subprocess
 import termios
 import uuid
 
@@ -13,8 +13,8 @@ def _attach_controlling_terminal(slave_fd):
     os.setsid()
     fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
 
-class TerminalSession:
 
+class TerminalSession:
     def __init__(self, session_id, send_output):
         self.master_fd = None
         self.process = None

@@ -8,6 +8,11 @@ STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "stat
 LOG_DIR = Path(
     os.environ.get("SHELL_APP_LOG_DIR", STATE_DIR / "shell_app" / "log")
 )
+LOG_FILES = {
+    "debug": "debug.log",
+    "warning": "warning.log",
+    "error": "error.log",
+}
 
 
 class ExactLevelFilter(logging.Filter):
@@ -33,9 +38,9 @@ def configure_logging():
     )
 
     handlers = (
-        ("debug.log", logging.DEBUG, None),
-        ("error.log", logging.ERROR, None),
-        ("warning.log", logging.WARNING, logging.WARNING),
+        (LOG_FILES["debug"], logging.DEBUG, None),
+        (LOG_FILES["error"], logging.ERROR, None),
+        (LOG_FILES["warning"], logging.WARNING, logging.WARNING),
     )
     for filename, level, exact_level in handlers:
         handler = RotatingFileHandler(

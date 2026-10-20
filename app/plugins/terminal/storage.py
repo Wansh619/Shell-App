@@ -1,9 +1,15 @@
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
 
-DB_PATH = Path(__file__).resolve().parent / "terminal_sessions.db"
+DB_PATH = Path(
+    os.environ.get(
+        "SHELL_APP_SESSION_DB",
+        Path(__file__).resolve().parents[3] / "terminal_sessions.db",
+    )
+)
 
 
 def _get_connection():
