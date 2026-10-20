@@ -1,0 +1,5 @@
+[app]
+host = 0.0.0.0
+port = 5000
+log = /var/log/shell-app
+session_db = /var/lib/shell-app/terminal_sessions.db

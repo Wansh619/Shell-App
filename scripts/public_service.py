@@ -1,3 +1,4 @@
+import configparser
 import email.message
 import logging
 import os
@@ -124,14 +125,13 @@ def wait_for_health(app_process, host, port):
     raise TimeoutError(f"Shell App did not become healthy at {health_url}.")
 
 
-def start_tunnel():
+def start_tunnel(port):
     binary = os.environ.get("CLOUDFLARED_BIN") or shutil.which("cloudflared")
     if not binary:
         raise RuntimeError(
             "cloudflared is not installed or not on PATH; set CLOUDFLARED_BIN."
         )
 
-    port = int(os.environ.get("SHELL_APP_PORT", "5000"))
     process = subprocess.Popen(
         [
             binary,
@@ -161,7 +161,7 @@ def start_tunnel():
 def child_environment():
     environment = os.environ.copy()
     for name in tuple(environment):
-        if name.startswith("SHELL_APP_SMTP_"):
+        if name.startswith("SHELL_APP_"):
             environment.pop(name)
 
     account = get_run_account()
@@ -181,6 +181,28 @@ def get_run_account():
         return pwd.getpwnam(username)
     except KeyError as error:
         raise RuntimeError(f"Service account {username!r} does not exist.") from error
+
+
+def get_app_settings():
+    config_path = os.environ.get("SHELL_APP_CONFIG_FILE", "/etc/shell-app/sys.config")
+    config_file = Path(config_path)
+    if not config_file.is_file():
+        raise RuntimeError(f"App config file {config_file} does not exist.")
+    config = configparser.ConfigParser()
+    with config_file.open(encoding="utf-8") as file:
+        config.read_file(file)
+    try:
+        parsed_port = config.getint("app", "port")
+    except ValueError as error:
+        raise RuntimeError("The app port in sys.config must be an integer.") from error
+    if not 1 <= parsed_port <= 65535:
+        raise RuntimeError("The app port in sys.config must be between 1 and 65535.")
+    return {
+        "host": config.get("app", "host", fallback="0.0.0.0"),
+        "port": parsed_port,
+        "log": config.get("app", "log"),
+        "session_db": config.get("app", "session_db"),
+    }
 
 
 def drop_child_privileges():
@@ -227,23 +249,29 @@ def main():
     for handled_signal in (signal.SIGINT, signal.SIGTERM):
         signal.signal(handled_signal, lambda *_: stopping.set())
 
-    host = os.environ.get("SHELL_APP_HOST", "0.0.0.0")
-    port = int(os.environ.get("SHELL_APP_PORT", "5000"))
+    app_settings = get_app_settings()
+    host = app_settings["host"]
+    port = app_settings["port"]
     mail_settings = get_mail_settings()
     app_process = None
     tunnel_process = None
 
     try:
         logger.info("Starting Shell App on %s:%s", host, port)
+        app_environment = child_environment()
+        app_environment["SHELL_APP_HOST"] = host
+        app_environment["SHELL_APP_PORT"] = str(port)
+        app_environment["SHELL_APP_LOG_DIR"] = app_settings["log"]
+        app_environment["SHELL_APP_SESSION_DB"] = app_settings["session_db"]
         app_process = subprocess.Popen(
             [sys.executable, "app.py"],
             cwd=APP_DIR,
-            env=child_environment(),
+            env=app_environment,
             preexec_fn=drop_child_privileges,
         )
         wait_for_health(app_process, host, port)
 
-        tunnel_process, output_lines = start_tunnel()
+        tunnel_process, output_lines = start_tunnel(port)
         url = wait_for_tunnel_url(tunnel_process, output_lines)
         logger.info("Cloudflare Quick Tunnel is available at %s", url)
         send_tunnel_email(url, mail_settings)

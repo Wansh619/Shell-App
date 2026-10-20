@@ -1,7 +1,51 @@
 # Deploy Shell App on Linux
 
 This guide installs Shell App as a systemd service on a Debian/Ubuntu-style
-Linux server. The service:
+Linux server. To use the interactive installer, clone this repository and run:
+
+```sh
+sudo bash deploy/setup.sh
+```
+
+The installer creates the restricted `hat` account, asks for the Gmail address,
+Google app password, and recipient(s), and stores the credentials in the
+root-only `/etc/shell-app/shell-app.env`. Enter multiple recipients as a
+comma-separated list. The installer installs the required Debian/Ubuntu CLI
+tools, Python runtime/venv tooling, and `cloudflared`; SMTP is an external mail
+service, so the installer configures Gmail's SMTP connection rather than
+installing a mail server. The Gmail server host (`smtp.gmail.com`), port
+(`587`), and STARTTLS encryption are configured automatically; this is Google's
+SMTP endpoint, not a host or domain you need to buy. The installer prints
+Google's app-password help link; App passwords require 2-Step Verification. It clones
+the public repository at `https://github.com/Wansh619/Shell-App.git` to
+`/opt/shell-app` or fast-forward updates an existing clean checkout on `main`;
+no GitHub login is required. It writes all Shell App settings
+(host, port, log directory, and session database path) to
+`/etc/shell-app/sys.config`, installs dependencies and the systemd unit, then
+starts the service. A symlink at `/opt/shell-app/deploy/sys.config` points to
+the system config. Deployment-only values (SMTP settings, config path, and
+service account) are set in the protected systemd environment file. SMTP
+credentials stay with the privileged supervisor; it removes `SHELL_APP_*`
+variables before launching child processes, then passes app settings loaded
+from `sys.config` to the app.
+
+The deployment sequence is:
+
+```mermaid
+stateDiagram-v2
+    state "Install system CLI tools, Python, and cloudflared" as stage_1
+    state "Clone main or fast-forward the clean main checkout" as stage_2
+    state "Create virtualenv, install requirements.txt, and start app.py" as stage_3
+    state "Start Cloudflare tunnel and obtain its URL" as stage_4
+    state "Email the URL to the configured recipient(s)" as stage_5
+
+    stage_1 --> stage_2
+    stage_2 --> stage_3
+    stage_3 --> stage_4
+    stage_4 --> stage_5
+```
+
+By default, the service:
 
 1. Starts the app on `0.0.0.0:5000`.
 2. Waits for the local `/health` endpoint to respond.
@@ -15,10 +59,11 @@ development and testing, not production.
 ## Important: the URL exposes an interactive shell
 
 Anyone who obtains the URL can use the app's interactive terminal. The random
-URL is difficult to guess, but it is **not authentication**. Terminal commands
-run as the restricted `shell-app` Linux account, not as root. Use this only on a
-practice server with no sensitive data or credentials accessible to that
-account. Do not expose port 5000 directly to the internet.
+URL is difficult to guess, but it is **not authentication**. With the
+interactive installer, terminal commands run as the restricted `hat` Linux
+account, not as root. Use this only on a practice server with no sensitive data
+or credentials accessible to that account. Do not expose port 5000 directly
+to the internet.
 
 In the server or cloud-provider firewall, allow only the inbound ports you
 need for administration (for example, SSH) and block inbound TCP port `5000`.
@@ -27,25 +72,17 @@ The tunnel connects to the app over the server's loopback interface, so port
 
 ## 1. Install prerequisites
 
-Use a Linux server with systemd, Python 3, Git, and sudo access:
+Use a Debian/Ubuntu-style Linux server with systemd and sudo access. The
+installer adds Cloudflare's official stable APT repository and installs
+`cloudflared` if it is not already available:
 
 ```sh
-# Refreshes APT's package index; it does not install or upgrade packages.
-sudo apt update
-# Installs Git, Python 3, venv support, and pip, which deployment needs.
-sudo apt install -y git python3 python3-venv python3-pip
-```
-
-Install `cloudflared` using Cloudflare's current Linux installation
-instructions: [Install cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/).
-Verify it is available:
-
-```sh
-# Prints the installed cloudflared version; this also verifies it is on PATH.
-cloudflared --version
+sudo bash deploy/setup.sh
 ```
 
 ## 2. Copy the application to `/opt/shell-app`
+
+Skip this manual step when using `deploy/setup.sh`.
 
 From a clone of this repository, run these commands at its root:
 
@@ -60,8 +97,20 @@ sudo cp -a deploy /opt/shell-app/
 sudo chown -R root:root /opt/shell-app
 ```
 
+Create and edit the app configuration:
+
+```sh
+sudo install -d -o root -g root -m 0700 /etc/shell-app
+sudo install -o root -g root -m 0600 \
+  /opt/shell-app/deploy/sys.config.example /etc/shell-app/sys.config
+sudoedit /etc/shell-app/sys.config
+```
+
 The service unit expects this exact installation path. Keep the source tree
 root-owned so the account running terminal commands cannot modify the app.
+On reruns, the installer refuses a dirty or non-`main` checkout, preserves
+existing `/etc/shell-app` configuration, installs updated Python requirements,
+and restarts the service with the latest `main`.
 
 ## Backend plugins
 
@@ -99,6 +148,9 @@ The default `app.py` entry point continues to start the built-in plugins.
 
 ## 3. Create the restricted service account and state directory
 
+Skip this manual step when using `deploy/setup.sh`; it creates the restricted
+`hat` account, state directory, and log directory.
+
 ```sh
 # Creates the unprivileged Linux account used to run the app's terminal commands.
 # --system creates a service account; --user-group creates its matching group.
@@ -106,11 +158,15 @@ The default `app.py` entry point continues to start the built-in plugins.
 sudo useradd --system --user-group --home-dir /var/lib/shell-app --shell /bin/bash shell-app
 # Creates the state directory and gives only the service account access to it.
 sudo install -d -o shell-app -g shell-app -m 0750 /var/lib/shell-app
+# Creates the log directory specified in sys.config.
+sudo install -d -o shell-app -g shell-app -m 0750 /var/log/shell-app
 ```
 
 If the `shell-app` account already exists, skip `useradd`.
 
 ## 4. Create the Python environment
+
+Skip this manual step when using `deploy/setup.sh`.
 
 ```sh
 # Creates an isolated Python environment alongside the deployed app.
@@ -122,6 +178,9 @@ sudo /opt/shell-app/.venv/bin/pip install -r /opt/shell-app/requirements.txt
 ```
 
 ## 5. Configure email
+
+Skip this manual step when using `deploy/setup.sh`; it prompts for the settings
+and creates the protected environment file.
 
 Create the service environment file and edit it:
 
@@ -149,16 +208,19 @@ Set these values:
 | `SHELL_APP_SMTP_FROM` | Verified sender address |
 | `SHELL_APP_SMTP_TO` | Recipient address(es), comma-separated |
 
-The example uses Brevo SMTP settings. Replace the username and password with
-the SMTP login and SMTP key from your mail provider, set an authorized sender,
-and enter the recipient address or addresses. Do not use an account's normal
-email password when the provider supports app-specific SMTP credentials.
+The example uses Gmail: set the host to `smtp.gmail.com`, port to `587`, and
+STARTTLS to `true`. The sender should match the Gmail account used to
+authenticate. Create a Google app password (requires 2-Step Verification);
+do not use your normal Google account password. The recipient address can be
+any email account.
 
 Keep this file root-owned with mode `0600`. Do not commit it or put real
 credentials in the repository. The systemd environment file uses systemd
 syntax, not shell syntax; do not add `export` before variables.
 
 ## 6. Install and start the systemd service
+
+Skip this manual step when using `deploy/setup.sh`.
 
 ```sh
 # Installs the service unit where systemd looks for system-wide services.
@@ -185,14 +247,15 @@ email was sent. Check the configured recipient's inbox and spam folder.
 
 ## Service details
 
-- The app listens on `0.0.0.0:5000`; `cloudflared` connects to it over loopback.
-- Set `SHELL_APP_HOST` or `SHELL_APP_PORT` in the environment file to override
-  the defaults. Keep the app and tunnel port values consistent.
-- Logs and the session database are stored under `/var/lib/shell-app`.
+- All Shell App settings come from `/etc/shell-app/sys.config`; environment
+  variables do not override them. The configured `log` and `session_db` paths
+  must be writable by the service account and permitted by systemd's
+  `ReadWritePaths`.
 - The systemd supervisor runs as root to read the protected mail configuration.
-  It removes SMTP variables and drops privileges before starting both the app
-  and `cloudflared`. The app and commands typed into its terminal run as
-  `shell-app`.
+  It drops privileges before starting both the app and `cloudflared`. The app
+  and terminal commands run as the configured service account (`hat` with the
+  installer or `shell-app` in the manual instructions). SMTP credentials are
+  not passed to either child process.
 - A failed app startup, tunnel startup, or email send is reported in the system
   journal; systemd retries the service with a delay.
 

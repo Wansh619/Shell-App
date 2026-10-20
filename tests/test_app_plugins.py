@@ -36,6 +36,9 @@ def test_app_registers_plugins_and_preserves_core_routes():
         assert example.status_code == 200
         assert await example.get_json() == {"plugin": "example"}
         assert home.status_code == 200
+        homepage = await home.get_data(as_text=True)
+        assert "<title>Nave Black Hat</title>" in homepage
+        assert "images/favicon.svg" in homepage
 
     asyncio.run(request_routes())
 

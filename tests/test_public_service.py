@@ -59,6 +59,42 @@ def test_mail_settings_rejects_conflicting_tls_modes(monkeypatch):
         public_service.get_mail_settings()
 
 
+def test_app_settings_reads_all_app_values_from_ini_config(monkeypatch, tmp_path):
+    config_file = tmp_path / "sys.config"
+    config_file.write_text(
+        "[app]\nhost = 127.0.0.1\nport = 8123\n"
+        "log = /var/log/shell-app\n"
+        "session_db = /var/lib/shell-app/terminal_sessions.db\n"
+    )
+    monkeypatch.setenv("SHELL_APP_CONFIG_FILE", str(config_file))
+    monkeypatch.setenv("SHELL_APP_HOST", "192.0.2.5")
+    monkeypatch.setenv("SHELL_APP_PORT", "9000")
+
+    assert public_service.get_app_settings() == {
+        "host": "127.0.0.1",
+        "port": 8123,
+        "log": "/var/log/shell-app",
+        "session_db": "/var/lib/shell-app/terminal_sessions.db",
+    }
+
+
+def test_app_settings_rejects_missing_config_and_invalid_ports(monkeypatch, tmp_path):
+    monkeypatch.setenv("SHELL_APP_CONFIG_FILE", str(tmp_path / "missing.cfg"))
+    with pytest.raises(RuntimeError, match="does not exist"):
+        public_service.get_app_settings()
+
+    config_file = tmp_path / "invalid.cfg"
+    config_file.write_text(
+        "[app]\nhost = 127.0.0.1\nport = 70000\n"
+        "log = /var/log/shell-app\n"
+        "session_db = /var/lib/shell-app/terminal_sessions.db\n"
+    )
+    monkeypatch.setenv("SHELL_APP_CONFIG_FILE", str(config_file))
+    monkeypatch.setenv("SHELL_APP_PORT", "70000")
+    with pytest.raises(RuntimeError, match="between 1 and 65535"):
+        public_service.get_app_settings()
+
+
 def test_email_contains_quick_tunnel_url_and_uses_starttls(monkeypatch):
     set_mail_environment(monkeypatch)
     settings = public_service.get_mail_settings()
@@ -106,7 +142,7 @@ def test_child_environment_does_not_inherit_smtp_credentials(monkeypatch):
 
     assert "SHELL_APP_SMTP_PASSWORD" not in child_environment
     assert "SHELL_APP_SMTP_USERNAME" not in child_environment
-    assert child_environment["SHELL_APP_HOST"] == "0.0.0.0"
+    assert "SHELL_APP_HOST" not in child_environment
 
 
 def test_tunnel_url_is_parsed_from_cloudflared_output(monkeypatch):
