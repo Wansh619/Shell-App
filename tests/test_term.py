@@ -5,7 +5,7 @@ import pty
 import struct
 import termios
 
-from term import TerminalSession
+from app.plugins.terminal.terminal import TerminalSession
 
 
 def test_resize_updates_terminal_dimensions():

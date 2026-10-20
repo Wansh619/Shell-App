@@ -53,7 +53,7 @@ From a clone of this repository, run these commands at its root:
 # Creates the root-owned installation directory with standard read/execute permissions.
 sudo install -d -o root -g root -m 0755 /opt/shell-app
 # Copies the app source and runtime assets from the current repository directory.
-sudo cp -a app.py term.py session_store.py requirements.txt static templates utils scripts /opt/shell-app/
+sudo cp -a app.py app requirements.txt static templates scripts /opt/shell-app/
 # Copies the systemd unit and deployment configuration examples.
 sudo cp -a deploy /opt/shell-app/
 # Ensures the app files are owned by root, not by the account that runs terminal commands.
@@ -62,6 +62,40 @@ sudo chown -R root:root /opt/shell-app
 
 The service unit expects this exact installation path. Keep the source tree
 root-owned so the account running terminal commands cannot modify the app.
+
+## Backend plugins
+
+The Quart backend is organized under `app/`: shared interfaces and route
+registration live in `app/core/`, while built-in terminal and panel features
+are registered from `app/plugins/`. To add a plugin, implement the `Plugin`
+interface (`name` and `register(app)`), then pass it to `create_app`:
+
+```python
+import asyncio
+
+from quart import Blueprint, Quart
+
+from app import create_app, run_server
+
+
+class ReportsPlugin:
+    name = "reports"
+
+    def register(self, app: Quart) -> None:
+        routes = Blueprint("reports", __name__)
+
+        @routes.get("/reports")
+        async def reports():
+            return {"reports": []}
+
+        app.register_blueprint(routes)
+
+
+if __name__ == "__main__":
+    asyncio.run(run_server(application=create_app(plugins=[ReportsPlugin()])))
+```
+
+The default `app.py` entry point continues to start the built-in plugins.
 
 ## 3. Create the restricted service account and state directory
 
@@ -171,7 +205,7 @@ while keeping that tree root-owned, then restart the service:
 # Stops the app before replacing its files.
 sudo systemctl stop shell-app.service
 # Copies the updated application source and assets over the deployed version.
-sudo cp -a app.py term.py session_store.py requirements.txt static templates utils scripts /opt/shell-app/
+sudo cp -a app.py app requirements.txt static templates scripts /opt/shell-app/
 # Keeps the deployed files root-owned after copying.
 sudo chown -R root:root /opt/shell-app
 # Synchronizes installed Python packages with the updated requirements file.

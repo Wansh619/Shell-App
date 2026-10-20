@@ -133,6 +133,7 @@ class HomeyComb {
 
                 const cellBtn = document.createElement("button");
                 cellBtn.className = "hex-cell";
+                cellBtn.type = "button";
                 cellBtn.style.width = `${hexW}px`;
                 cellBtn.style.height = `${hexH}px`;
                 cellBtn.style.transform = `translate(${x + offsetX}px, ${y}px)`;
@@ -186,6 +187,14 @@ class HomeyComb {
     async _setCellContent(cell, { role, name, icon, menuIndex }) {
         cell.dataset.role = role;
         cell.dataset.menuIndex = menuIndex ?? "";
+        cell.setAttribute("aria-label", role === "theme" ? "Toggle color theme" : name);
+        cell.title = role === "theme" ? "Toggle color theme" : name;
+        if (role === "theme") {
+            cell.setAttribute(
+                "aria-pressed",
+                String(document.documentElement.classList.contains("dark"))
+            );
+        }
 
         const surface = cell.querySelector(".hex-surface");
         surface.innerHTML = "";
@@ -203,7 +212,7 @@ class HomeyComb {
             const iconObj = new Icon(`/static/images/${icon}`, {
                 className: "hex-icon-wrapper",
                 svgClassName: `hex-icon-svg ${role === "theme" ? "theme-icon" : ""}`,
-                size: role === "theme" ? 32 : 28,
+                size: role === "theme" ? 40 : 28,
             });
 
             try {
@@ -216,7 +225,7 @@ class HomeyComb {
         const label = document.createElement("div");
         label.className = "hex-label";
         label.textContent = name;
-        content.appendChild(label);
+        if (role !== "theme") content.appendChild(label);
 
         cell.classList.toggle("hex-theme-toggle", role === "theme");
     }
@@ -249,11 +258,11 @@ class HomeyComb {
         this._menuMapping = this._menuMapping ||
             shuffle(this.pluginManager.getPlugins());
 
-        // 🔥 Theme center WITH ICON
+        // Animated theme control in the center tile.
         await this._setCellContent(centerCell, {
             role: "theme",
-            name: "Theme",
-            icon: null,
+            name: "Toggle color theme",
+            icon: "theme-core.svg",
         });
 
         for (let i = 0; i < menuCoords.length; i++) {
@@ -298,7 +307,11 @@ class HomeyComb {
     }
 
     _toggleTheme(e) {
-        toggleTheme();
+        const theme = toggleTheme();
+        e.target.closest(".hex-cell")?.setAttribute(
+            "aria-pressed",
+            String(theme === "dark")
+        );
     }
 
     async _openMenu(hexSlot, item) {

@@ -7,7 +7,7 @@ from pathlib import Path
 DB_PATH = Path(
     os.environ.get(
         "SHELL_APP_SESSION_DB",
-        Path(__file__).resolve().parent / "terminal_sessions.db",
+        Path(__file__).resolve().parents[3] / "terminal_sessions.db",
     )
 )
 
