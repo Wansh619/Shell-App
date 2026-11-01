@@ -422,6 +422,14 @@ button {
     border-left: 2px solid var(--console-border);
 }
 
+.console-command-toolbar {
+    display: flex;
+    min-height: 28px;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
 .console-command-stdin,
 .console-command-stdout,
 .console-terminal-log {
@@ -470,10 +478,79 @@ button {
 }
 
 .console-command-status {
-    display: block;
-    margin-top: 4px;
+    margin-right: auto;
     color: var(--console-muted);
     font-size: 10px;
+}
+
+.console-command-copy-feedback {
+    color: var(--console-muted);
+    font-size: 10px;
+}
+
+.console-command-copy-menu {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.console-command-copy-menu summary {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid var(--console-border);
+    border-radius: 5px;
+    color: var(--normal-text);
+    cursor: pointer;
+    font-size: 19px;
+    line-height: 1;
+    list-style: none;
+}
+
+.console-command-copy-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.console-command-copy-menu summary:hover,
+.console-command-copy-menu summary:focus-visible {
+    outline: none;
+    border-color: var(--console-accent);
+}
+
+.console-command-copy-options {
+    position: absolute;
+    z-index: 3;
+    right: 0;
+    bottom: calc(100% + 4px);
+    display: none;
+    min-width: 154px;
+    padding: 4px;
+    border: 1px solid var(--console-border);
+    border-radius: 5px;
+    background: var(--theme-shade-2);
+    box-shadow: 0 4px 14px color-mix(in srgb, #000 18%, transparent);
+}
+
+.console-command-copy-menu[open] .console-command-copy-options {
+    display: grid;
+}
+
+.console-command-copy-options button {
+    min-height: 32px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--normal-text);
+    cursor: pointer;
+    text-align: left;
+    font-size: 11px;
+}
+
+.console-command-copy-options button:hover,
+.console-command-copy-options button:focus-visible {
+    outline: none;
+    background: var(--theme-shade-3);
 }
 
 .console-command-status.has-error,
