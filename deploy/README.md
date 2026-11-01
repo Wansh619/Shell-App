@@ -350,3 +350,15 @@ After stopping it, you may separately remove `/opt/shell-app`, the
 `/etc/shell-app/shell-app.env` credentials file, and `/var/lib/shell-app`. The
 last directory contains the app's logs and session database; copy anything you
 want to keep before deleting it.
+
+## Terminal shell and `su`
+
+Terminal sessions use `SHELL_APP_SHELL` if set, otherwise the run user's login
+shell, otherwise `/bin/bash`. bash, zsh and POSIX shells (sh, dash, ksh) are
+supported; fish is not and falls back to bash.
+
+`su` is a setuid-root binary, so the service must not run with
+`NoNewPrivileges=true` (the unit sets it to `false`). After changing the unit,
+run `sudo cp deploy/systemd/shell-app.service /etc/systemd/system/ &&
+sudo systemctl daemon-reload && sudo systemctl restart shell-app`. The target
+account also needs a real login shell and a password set (`sudo passwd <user>`).

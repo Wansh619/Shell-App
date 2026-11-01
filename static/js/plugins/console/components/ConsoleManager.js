@@ -15,7 +15,56 @@ class CommandBlock {
         this.status.setAttribute("aria-live", "polite");
         this.status.textContent = "Input";
 
-        this.element.append(this.stdin, this.stdout, this.status);
+        this.toolbar = document.createElement("div");
+        this.toolbar.className = "console-command-toolbar";
+
+        this.copyFeedback = document.createElement("span");
+        this.copyFeedback.className = "console-command-copy-feedback";
+        this.copyFeedback.setAttribute("role", "status");
+        this.copyFeedback.setAttribute("aria-live", "polite");
+
+        this.copyMenu = document.createElement("details");
+        this.copyMenu.className = "console-command-copy-menu";
+
+        this.copyMenuSummary = document.createElement("summary");
+        this.copyMenuSummary.textContent = "\u22ee";
+        this.copyMenuSummary.setAttribute("aria-label", "Copy command block");
+        this.copyMenuSummary.title = "Copy command block";
+
+        const copyOptions = document.createElement("div");
+        copyOptions.className = "console-command-copy-options";
+        const actions = [
+            ["Copy stdin", () => this.stdin.textContent],
+            ["Copy stdout", () => this.stdout.textContent],
+            [
+                "Copy whole block",
+                () => this.stdout.textContent
+                    ? `${this.stdin.textContent}\n${this.stdout.textContent}`
+                    : this.stdin.textContent
+            ]
+        ];
+
+        actions.forEach(([label, getText]) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = label;
+            button.addEventListener("click", () => {
+                void this.copyText(getText(), label);
+            });
+            copyOptions.append(button);
+        });
+
+        this.copyMenu.append(this.copyMenuSummary, copyOptions);
+        this.copyMenu.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                this.copyMenu.open = false;
+                this.copyMenuSummary.focus();
+            }
+        });
+
+        this.toolbar.append(this.status, this.copyFeedback, this.copyMenu);
+        this.element.append(this.stdin, this.stdout, this.toolbar);
         container.append(this.element);
     }
 
@@ -30,7 +79,7 @@ class CommandBlock {
     setRunningInput(form) {
         this.runningForm?.remove();
         this.runningForm = form;
-        this.element.insertBefore(form, this.status);
+        this.element.insertBefore(form, this.toolbar);
     }
 
     clearRunningInput() {
@@ -41,6 +90,41 @@ class CommandBlock {
     write(value) {
         this.stdout.textContent += value;
         this.stdout.scrollTop = this.stdout.scrollHeight;
+    }
+
+    async copyText(value, label) {
+        try {
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(value);
+                } catch {
+                    this.copyWithFallback(value);
+                }
+            } else {
+                this.copyWithFallback(value);
+            }
+            this.copyFeedback.textContent = `${label} copied`;
+        } catch {
+            this.copyFeedback.textContent = "Copy failed";
+        } finally {
+            this.copyMenu.open = false;
+            this.copyMenuSummary.focus();
+        }
+    }
+
+    copyWithFallback(value) {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.append(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) {
+            throw new Error("Clipboard copy failed.");
+        }
     }
 
     finish(exitCode) {
