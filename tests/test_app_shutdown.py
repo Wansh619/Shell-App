@@ -14,6 +14,16 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+def _connect_when_ready(process, port):
+    deadline = time.monotonic() + 8
+    while True:
+        try:
+            return socket.create_connection(("127.0.0.1", port), timeout=3)
+        except OSError:
+            if process.poll() is not None or time.monotonic() >= deadline:
+                pytest.fail("The app server did not start")
+            time.sleep(0.1)
+
 
 def _read_exact(connection, size):
     chunks = bytearray()
@@ -75,19 +85,10 @@ def test_sigint_stops_server_with_an_active_terminal_session():
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    connection = socket.socket()
-    connection.settimeout(2)
+    connection = None
 
     try:
-        deadline = time.monotonic() + 8
-        while True:
-            try:
-                connection.connect(("127.0.0.1", port))
-                break
-            except OSError:
-                if process.poll() is not None or time.monotonic() >= deadline:
-                    pytest.fail("The app server did not start")
-                time.sleep(0.1)
+        connection = _connect_when_ready(process, port)
 
         key = base64.b64encode(secrets.token_bytes(16)).decode()
         connection.sendall(
@@ -123,6 +124,53 @@ def test_sigint_stops_server_with_an_active_terminal_session():
                 output += message
         assert "__pty_ready__" in output
 
+        process.send_signal(signal.SIGINT)
+        assert process.wait(timeout=5) == 0
+    finally:
+        if connection is not None:
+            connection.close()
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+
+
+@pytest.mark.parametrize("endpoint", ["/ws/cpu-stats", "/ws/network-manager"])
+def test_sigint_stops_server_with_active_monitoring_socket(endpoint):
+    with socket.socket() as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        port = reservation.getsockname()[1]
+    startup = (
+        "import asyncio, app; "
+        "app.init_db = lambda: None; app.clear_sessions = lambda: None; "
+        f"asyncio.run(app.run_server(port={port}))"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", startup],
+        cwd=PROJECT_ROOT,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    connection = None
+    try:
+        connection = _connect_when_ready(process, port)
+        key = base64.b64encode(secrets.token_bytes(16)).decode()
+        connection.sendall(
+            (
+                f"GET {endpoint} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+                "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+            ).encode()
+        )
+        # Read exactly through the upgrade headers without losing a buffered frame.
+        response = bytearray()
+        while not response.endswith(b"\r\n\r\n"):
+            response.extend(connection.recv(1))
+        assert response.startswith(b"HTTP/1.1 101")
+        opcode, payload = _receive_websocket_message(connection)
+        assert opcode == 1
+        assert json.loads(payload)["type"] == "snapshot"
         process.send_signal(signal.SIGINT)
         assert process.wait(timeout=5) == 0
     finally:

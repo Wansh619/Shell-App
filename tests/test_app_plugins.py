@@ -31,7 +31,7 @@ def test_app_registers_plugins_and_preserves_core_routes():
         assert health.status_code == 200
         assert await health.get_json() == {"status": "ok"}
         assert await plugins.get_json() == {
-            "plugins": ["terminal", "panels", "example"]
+            "plugins": ["terminal", "panels", "cpu_stats", "network_manager", "example"]
         }
         assert example.status_code == 200
         assert await example.get_json() == {"plugin": "example"}
@@ -39,8 +39,31 @@ def test_app_registers_plugins_and_preserves_core_routes():
         homepage = await home.get_data(as_text=True)
         assert "<title>Nave Black Hat</title>" in homepage
         assert "images/favicon.svg" in homepage
+        assert "css/monitoring.css" in homepage
 
     asyncio.run(request_routes())
+
+
+def test_monitoring_dashboard_assets_are_served():
+    application = create_app()
+
+    async def request_assets():
+        client = application.test_client()
+        for path in (
+            "/static/js/plugins/cpu_stats/plugin.js",
+            "/static/js/plugins/network_manager/plugin.js",
+            "/static/css/monitoring.css",
+            "/static/images/cpu.svg",
+            "/static/images/network.svg",
+        ):
+            response = await client.get(path)
+            assert response.status_code == 200, path
+        response = await client.get("/static/js/honeycomb.js")
+        source = await response.get_data(as_text=True)
+        assert "new CPUStatsPlugin()" in source
+        assert "new NetworkManagerPlugin()" in source
+
+    asyncio.run(request_assets())
 
 
 def test_log_route_preserves_unknown_log_precedence():

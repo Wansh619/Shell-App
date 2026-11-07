@@ -1,1 +1,5 @@
 Quart==0.20.0
+psutil>=7.0,<8
+dbus-next>=0.2.3,<1; sys_platform == "linux"
+pyobjc-framework-CoreWLAN>=10,<12; sys_platform == "darwin"
+pyobjc-framework-SystemConfiguration>=10,<12; sys_platform == "darwin"

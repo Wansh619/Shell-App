@@ -4,6 +4,8 @@ import Plugin from "./plugins/plugin.js";
 import HomePlugin from "./plugins/home/plugin.js";
 import ConsolePlugin from "./plugins/console/plugin.js";
 import DebugPlugin from "./plugins/debug/plugin.js";
+import CPUStatsPlugin from "./plugins/cpu_stats/plugin.js";
+import NetworkManagerPlugin from "./plugins/network_manager/plugin.js";
 
 class PluginManager {
     constructor(plugins = []) {
@@ -49,6 +51,8 @@ const starterPlugins = [
     new HomePlugin(),
     new ConsolePlugin(),
     new DebugPlugin(),
+    new CPUStatsPlugin(),
+    new NetworkManagerPlugin(),
 ];
 
 function shuffle(array) {

@@ -10,6 +10,8 @@ from app.core.interfaces import Plugin
 from app.core.logging import LOG_DIR, logger
 from app.core.routes import core_routes
 from app.extensions import init_extensions
+from app.plugins.cpu_stats.plugin import CPUStatsPlugin
+from app.plugins.network_manager.plugin import NetworkManagerPlugin
 from app.plugins.panels.plugin import PanelsPlugin
 from app.plugins.terminal.plugin import TerminalPlugin
 from app.plugins.terminal.services import TerminalService
@@ -39,6 +41,8 @@ def create_app(plugins: Iterable[Plugin] = ()) -> Quart:
         TerminalPlugin(terminal_manager, socket_manager, terminal_service)
     )
     plugin_manager.register(PanelsPlugin())
+    plugin_manager.register(CPUStatsPlugin())
+    plugin_manager.register(NetworkManagerPlugin())
     for plugin in plugins:
         plugin_manager.register(plugin)
     application.register_blueprint(core_routes)

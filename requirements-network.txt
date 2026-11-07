@@ -1,0 +1,6 @@
+# Optional platform packages for native network controls and deeper OS details.
+# Basic psutil monitoring, subnet math, Windows ctypes WLAN, and command-backed
+# link/route inspection work without these packages.
+dbus-next>=0.2.3,<1; sys_platform == "linux"
+pyobjc-framework-CoreWLAN>=10,<12; sys_platform == "darwin"
+pyobjc-framework-SystemConfiguration>=10,<12; sys_platform == "darwin"

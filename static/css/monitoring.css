@@ -1,0 +1,404 @@
+/* ==========================================================================
+   1. Theme Variables & Dashboard Root
+   ========================================================================== */
+.monitoring-dashboard {
+    --monitoring-chart-primary: var(--primary, #6200ee);
+    --monitoring-chart-secondary: #008978;
+    --monitoring-chart-tertiary: #a66b00;
+    --monitoring-chart-fourth: #c24062;
+    color: var(--normal-text);
+    background: var(--theme-shade-3);
+    font-family: var(--font-family, sans-serif);
+    padding: clamp(16px, 3vw, 36px);
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    box-sizing: border-box;
+    color-scheme: light;
+}
+.dark .monitoring-dashboard {
+    --monitoring-chart-primary: #b69aff;
+    --monitoring-chart-secondary: #4ad9bd;
+    --monitoring-chart-tertiary: #efbb54;
+    --monitoring-chart-fourth: #ff91ad;
+    color-scheme: dark;
+}
+.monitoring-dashboard *,
+.monitoring-dashboard *::before,
+.monitoring-dashboard *::after { box-sizing: border-box; }
+
+/* ==========================================================================
+   2. Typography, Header & Status Banner
+   ========================================================================== */
+.monitoring-dashboard h1 { margin: 4px 0 8px; font-size: clamp(24px, 3vw, 36px); letter-spacing: -.04em; }
+.monitoring-dashboard h2 { font-size: 17px; margin: 0 0 16px; }
+.monitoring-dashboard h3 { font-size: 14px; margin: 20px 0 10px; }
+.monitoring-dashboard p { line-height: 1.5; }
+.monitoring-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+.monitoring-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .17em; margin: 0; color: var(--monitoring-chart-primary); }
+.monitoring-muted, .monitoring-label, .monitoring-timestamp, .monitoring-chart-summary { opacity: .72; }
+.monitoring-muted { margin: 4px 0 12px; font-size: 13px; }
+.monitoring-range, .monitoring-interface-label { display: flex; gap: 10px; align-items: center; font-size: 13px; white-space: nowrap; }
+.monitoring-dashboard select {
+    color: var(--normal-text);
+    background: var(--theme-shade-1);
+    border: 1px solid var(--theme-shade-10);
+    border-radius: 8px;
+    padding: 10px 32px 10px 12px;
+    font: inherit;
+    max-width: 100%;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.monitoring-dashboard select:focus-visible,
+.monitoring-capabilities summary:focus-visible { outline: 2px solid var(--monitoring-chart-primary); outline-offset: 3px; }
+.monitoring-banner {
+    padding: 12px 16px;
+    margin: 16px 0 8px;
+    font-size: 13px;
+    border-left: 3px solid var(--monitoring-chart-secondary);
+    background: var(--theme-shade-7);
+    border-radius: 6px;
+    transition: border-color 0.28s ease, background-color 0.28s ease;
+}
+.monitoring-banner[data-state="warning"] { border-color: #c48924; }
+.monitoring-banner[data-state="error"] { border-color: #db5555; }
+.monitoring-timestamp { font-size: 11px; overflow-wrap: anywhere; margin: 8px 0 20px; font-variant-numeric: tabular-nums; }
+.monitoring-content { display: grid; gap: 20px; max-width: 1600px; margin: auto; }
+
+/* ==========================================================================
+   3. Modular Tab Navigation & Smooth Panel Transitions
+   ========================================================================== */
+.monitoring-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+.monitoring-tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px;
+    background: var(--theme-shade-5);
+    border: 1px solid var(--theme-shade-9);
+    border-radius: 12px;
+}
+.monitoring-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--normal-text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 0.72;
+    transition: background-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.25s ease,
+                opacity 0.22s ease,
+                transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.25s ease;
+}
+.monitoring-tab-btn:hover {
+    opacity: 0.95;
+    background: var(--theme-shade-3);
+}
+.monitoring-tab-btn[data-active="true"],
+.monitoring-tab-btn.is-active {
+    opacity: 1;
+    background: var(--theme-shade-1);
+    border-color: var(--monitoring-chart-primary);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
+.monitoring-tab-btn:focus-visible {
+    outline: 2px solid var(--monitoring-chart-primary);
+    outline-offset: 2px;
+}
+.monitoring-tab-badge {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--theme-shade-7);
+    color: var(--monitoring-chart-primary);
+}
+.monitoring-tabpanels {
+    position: relative;
+    min-width: 0;
+}
+.monitoring-tabpanel {
+    display: none;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1), transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    min-width: 0;
+}
+.monitoring-tabpanel[data-active="true"],
+.monitoring-tabpanel.is-active {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+    animation: monitoringTabFadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.monitoring-tab-stack {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+}
+@keyframes monitoringTabFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   4. Summary Cards & HUD Circular Progress Gauges
+   ========================================================================== */
+.monitoring-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+.monitoring-card, .monitoring-section, .monitoring-chart, .monitoring-technology, .monitoring-capabilities {
+    background: var(--theme-shade-1);
+    border: 1px solid var(--theme-shade-9);
+    border-radius: 14px;
+    min-width: 0;
+    padding: 20px;
+    transition: background-color 0.28s ease, border-color 0.28s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease;
+}
+.monitoring-gauge-card {
+    --gauge-accent: var(--monitoring-chart-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+}
+.monitoring-gauge-card.is-secondary { --gauge-accent: var(--monitoring-chart-secondary); }
+.monitoring-gauge-card.is-tertiary { --gauge-accent: var(--monitoring-chart-tertiary); }
+.monitoring-gauge-card.is-fourth { --gauge-accent: var(--monitoring-chart-fourth); }
+.monitoring-gauge-card:hover {
+    border-color: var(--gauge-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.monitoring-gauge-svg {
+    width: 100%;
+    max-width: 230px;
+    height: auto;
+    display: block;
+    overflow: visible;
+}
+.monitoring-gauge-bg-ring {
+    stroke: var(--theme-shade-6);
+    transition: stroke 0.3s ease;
+}
+.monitoring-gauge-ticks {
+    stroke: var(--theme-shade-10);
+    opacity: 0.75;
+}
+.monitoring-gauge-orbit {
+    transform-origin: 150px 150px;
+    animation: monitoringGaugeOrbit 28s linear infinite;
+}
+.monitoring-gauge-orbit-ring {
+    stroke: var(--gauge-accent);
+    opacity: 0.55;
+}
+.monitoring-gauge-track {
+    stroke: var(--theme-shade-6);
+}
+.monitoring-gauge-progress {
+    stroke: var(--gauge-accent);
+    transition: stroke-dasharray 0.55s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.3s ease;
+}
+.monitoring-gauge-inner-deco {
+    stroke: var(--theme-shade-9);
+    opacity: 0.85;
+}
+.monitoring-gauge-value {
+    fill: var(--normal-text);
+    font-size: 22px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    transition: fill 0.25s ease;
+}
+.monitoring-gauge-value.monitoring-updating {
+    fill: var(--gauge-accent);
+}
+.monitoring-gauge-label {
+    fill: var(--normal-text);
+    opacity: 0.72;
+    font-size: 8px;
+    letter-spacing: 2px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+}
+@keyframes monitoringGaugeOrbit {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .monitoring-gauge-orbit { animation: none; }
+    .monitoring-gauge-progress { transition: none; }
+}
+.monitoring-label { display: block; font-size: 12px; margin-bottom: 10px; }
+.monitoring-value {
+    font-size: clamp(21px, 2.5vw, 31px);
+    font-weight: 600;
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+    display: block;
+    overflow-wrap: anywhere;
+    transition: color 0.24s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease;
+}
+.monitoring-updating { color: var(--monitoring-chart-primary); }
+
+/* ==========================================================================
+   5. Area Charts & Interactive Clickable Legends
+   ========================================================================== */
+.monitoring-chart-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.monitoring-chart { margin: 0; padding: 16px; overflow: hidden; }
+.monitoring-section > .monitoring-chart { margin-top: 20px; }
+.monitoring-chart-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.monitoring-chart figcaption { font-size: 13px; font-weight: 600; margin: 0; }
+.monitoring-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.monitoring-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--theme-shade-9);
+    background: var(--theme-shade-5);
+    color: var(--normal-text);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    transition: opacity 0.22s ease, transform 0.18s ease, border-color 0.22s ease, background-color 0.22s ease;
+}
+.monitoring-legend-item:hover {
+    border-color: var(--monitoring-chart-primary);
+    transform: translateY(-1px);
+}
+.monitoring-legend-item[data-active="false"],
+.monitoring-legend-item.is-muted {
+    opacity: 0.42;
+    text-decoration: line-through;
+}
+.monitoring-legend-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.monitoring-legend-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+.monitoring-chart canvas { display: block; width: 100%; height: 180px; transition: opacity 0.25s ease; }
+.monitoring-chart-summary { font-size: 11px; min-height: 28px; line-height: 1.5; font-variant-numeric: tabular-nums; transition: opacity 0.2s ease; margin-top: 6px; }
+
+/* ==========================================================================
+   6. Progress Bars, Core Meters & CPU Time Breakdown
+   ========================================================================== */
+.monitoring-cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 10px; }
+.monitoring-cores + .monitoring-interface-label { margin-top: 18px; }
+.monitoring-core {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 10px;
+    background: var(--theme-shade-5);
+    border-radius: 8px;
+    font-size: 12px;
+    transition: background-color 0.25s ease, transform 0.2s ease;
+}
+.monitoring-core strong { font-variant-numeric: tabular-nums; transition: color 0.22s ease; }
+.monitoring-core meter {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    border: 0;
+}
+.monitoring-progress-track {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 7px;
+    background: var(--theme-shade-8);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+.monitoring-progress-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--monitoring-chart-secondary), var(--monitoring-chart-primary));
+    transition: width 0.42s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s ease;
+    will-change: width;
+}
+.monitoring-time-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.monitoring-time { border-left: 2px solid var(--monitoring-chart-primary); padding-left: 12px; display: flex; flex-direction: column; gap: 6px; }
+.monitoring-time .monitoring-label { text-transform: capitalize; margin-bottom: 0; }
+.monitoring-time strong { font-size: 20px; font-variant-numeric: tabular-nums; transition: color 0.22s ease; }
+
+/* ==========================================================================
+   7. Tables, Technology Cards & Responsive Media Queries
+   ========================================================================== */
+.monitoring-details { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr); gap: 9px 20px; margin: 12px 0; font-size: 13px; }
+.monitoring-details dt { opacity: .7; }
+.monitoring-details dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; font-variant-numeric: tabular-nums; }
+.monitoring-table-wrap { overflow-x: auto; }
+.monitoring-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.monitoring-table th { opacity: .7; font-weight: 500; }
+.monitoring-table td, .monitoring-table th { padding: 12px 10px; border-bottom: 1px solid var(--theme-shade-8); overflow-wrap: anywhere; }
+.monitoring-table th:first-child, .monitoring-table td:first-child { padding-left: 0; }
+.monitoring-table td:nth-child(2) { max-width: 400px; }
+.monitoring-table td:not(:nth-child(2)) { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.monitoring-technologies { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.monitoring-technology h2 { font-size: 14px; margin-bottom: 8px; }
+.monitoring-link-state { font-size: 13px; margin: 0 0 8px; transition: color 0.25s ease; }
+.monitoring-link-state[data-state="connected"] { color: var(--monitoring-chart-secondary); }
+.monitoring-technology .monitoring-muted { overflow-wrap: anywhere; margin: 0; }
+.monitoring-capabilities summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.monitoring-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (max-width: 1000px) {
+    .monitoring-chart-grid { grid-template-columns: 1fr; }
+    .monitoring-technologies { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+    .monitoring-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+    .monitoring-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .monitoring-card, .monitoring-section, .monitoring-technology { padding: 14px; }
+    .monitoring-time-grid { grid-template-columns: repeat(2, 1fr); }
+    .monitoring-details { grid-template-columns: minmax(80px, 1fr) minmax(0, 1.5fr); gap: 8px; }
+}
+@media (forced-colors: active) {
+    .monitoring-banner, .monitoring-card, .monitoring-section, .monitoring-chart, .monitoring-technology { border: 1px solid CanvasText; }
+}
