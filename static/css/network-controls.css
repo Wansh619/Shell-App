@@ -2,49 +2,285 @@
    Network Controls — Android-Style Quick Tiles, Drop-Down & Detail Pop-Up
    ========================================================================== */
 .network-controls { overflow-wrap: anywhere; }
-.network-control-tabs { margin-top: 14px; }
+.network-control-tabs { margin-top: 10px; }
+/* Hide the redundant secondary tab bar; the top Quick Tiles with SVG logos control the container */
+.network-control-tabs > .monitoring-tablist {
+    display: none;
+}
 
-/* Android Quick-Settings Connection Tiles */
+/* Menu-to-Container Drilldown View Modes:
+   - In "menu" mode, show the Android ControlTile Menu Grid and hide the opened container.
+   - In "container" mode, hide the ControlTile Menu Grid and show the opened container with Back button. */
+.network-controls[data-view-mode="menu"] .network-control-tabs {
+    display: none;
+}
+.network-controls[data-view-mode="container"] .network-quick-tiles {
+    display: none;
+}
+
+/* Water-Drop / Ripple Spreading Keyframes */
+@keyframes networkDropRipple {
+    0% {
+        transform: translate(-50%, -50%) scale(0.05);
+        opacity: 0.72;
+    }
+    65% {
+        opacity: 0.28;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(3.8);
+        opacity: 0;
+    }
+}
+.network-drop-ripple {
+    position: absolute;
+    left: var(--drop-x, 28px);
+    top: var(--drop-y, 50%);
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(
+        circle,
+        rgba(0, 212, 255, 0.34) 0%,
+        rgba(16, 185, 129, 0.20) 48%,
+        rgba(0, 212, 255, 0) 72%
+    );
+    box-shadow: 0 0 0 1.5px rgba(0, 212, 255, 0.36);
+    animation: networkDropRipple 0.68s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Redrawing SVG Stroke Animation */
+@keyframes networkSvgRedraw {
+    0% {
+        stroke-dashoffset: 100;
+        opacity: 0.35;
+    }
+    55% {
+        opacity: 1;
+    }
+    100% {
+        stroke-dashoffset: 0;
+        opacity: 1;
+    }
+}
+
+/* Android Quick-Settings ControlTile Pill Layout with SVG Logos & Spread Hover */
 .network-quick-tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 12px;
-    margin: 14px 0 8px;
+    margin: 16px 0 14px;
 }
-.network-quick-tile,
-.monitoring-technology.network-android-tile {
+.network-quick-tile.network-control-tile {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 14px 16px;
-    border-radius: 18px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 14px 18px;
+    min-height: 70px;
+    border-radius: 999px;
     background: var(--theme-shade-3);
     border: 1px solid var(--theme-shade-9);
     text-align: left;
     cursor: pointer;
     position: relative;
-    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-                background-color 0.22s ease,
-                border-color 0.22s ease,
-                box-shadow 0.22s ease;
+    overflow: hidden;
+    isolation: isolate;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                background-color 0.28s ease,
+                border-color 0.28s ease,
+                box-shadow 0.28s ease;
 }
+.monitoring-technology.network-android-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 16px 18px;
+    border-radius: 22px;
+    background: var(--theme-shade-3);
+    border: 1px solid var(--theme-shade-9);
+    text-align: left;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                background-color 0.28s ease,
+                border-color 0.28s ease,
+                box-shadow 0.28s ease;
+}
+.network-control-tile-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Drop / Radial Spread Hover Transition Layer */
+.network-tile-spread {
+    position: absolute;
+    left: var(--drop-x, 28px);
+    top: var(--drop-y, 50%);
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(0, 212, 255, 0.26) 0%,
+        rgba(16, 185, 129, 0.14) 45%,
+        transparent 72%
+    );
+    transform: translate(-50%, -50%) scale(0.05);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+    transition: transform 0.58s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.38s ease;
+}
+.network-quick-tile > *:not(.network-tile-spread):not(.network-drop-ripple),
+.monitoring-technology.network-android-tile > *:not(.network-tile-spread):not(.network-drop-ripple),
+.network-connection-tile > *:not(.network-tile-spread):not(.network-drop-ripple),
+.network-back-btn > *:not(.network-tile-spread):not(.network-drop-ripple) {
+    position: relative;
+    z-index: 1;
+}
+.network-quick-tile:hover .network-tile-spread,
+.monitoring-technology.network-android-tile:hover .network-tile-spread,
+.network-connection-tile:hover .network-tile-spread,
+.network-back-btn:hover .network-tile-spread,
+.network-quick-tile[data-active="true"] .network-tile-spread,
+.network-quick-tile.is-active .network-tile-spread {
+    transform: translate(-50%, -50%) scale(2.8);
+    opacity: 1;
+}
+
+/* Back Button Inside Opened Container */
+.network-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px !important;
+    border-radius: 999px !important;
+    background: var(--theme-shade-1) !important;
+    border: 1px solid var(--monitoring-chart-primary) !important;
+    color: var(--monitoring-chart-primary) !important;
+    font-weight: 700 !important;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+.network-back-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+}
+.network-back-btn .network-tile-svg {
+    width: 16px;
+    height: 16px;
+}
+.network-back-btn:hover .network-tile-svg-path {
+    animation: networkSvgRedraw 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .network-quick-tile:hover,
 .monitoring-technology.network-android-tile:hover {
-    transform: translateY(-2px);
+    transform: translateY(-3px);
     border-color: var(--monitoring-chart-primary);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22), 0 0 16px rgba(0, 212, 255, 0.14);
 }
 .network-quick-tile[data-active="true"],
 .network-quick-tile.is-active {
     background: var(--theme-shade-5);
     border-color: var(--monitoring-chart-primary);
-    box-shadow: 0 0 0 1px var(--monitoring-chart-primary), 0 8px 20px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 0 0 1px var(--monitoring-chart-primary), 0 10px 26px rgba(0, 0, 0, 0.22);
 }
 .network-quick-tile[data-state="connected"],
 .monitoring-technology.network-android-tile[data-state="connected"] {
     border-left: 4px solid var(--monitoring-chart-secondary);
+}
+
+/* Tile SVG Icon & Redraw Trigger */
+.network-quick-tile-identity,
+.network-tech-tile-header,
+.network-panel-title-wrap,
+.network-tile-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.network-tech-tile-header h2 {
+    margin: 0;
+    font-size: 16px;
+}
+.network-quick-tile-icon,
+.network-panel-header-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--theme-shade-1);
+    border: 1px solid var(--theme-shade-9);
+    color: var(--monitoring-chart-primary);
+    flex-shrink: 0;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.28s ease,
+                background-color 0.28s ease,
+                box-shadow 0.28s ease;
+}
+.network-row-svg-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--theme-shade-3);
+    border: 1px solid var(--theme-shade-9);
+    color: var(--monitoring-chart-primary);
+    flex-shrink: 0;
+    transition: transform 0.24s ease, border-color 0.24s ease;
+}
+.network-tile-svg {
+    width: 20px;
+    height: 20px;
+    overflow: visible;
+}
+.network-row-svg-icon .network-tile-svg {
+    width: 16px;
+    height: 16px;
+}
+.network-tile-svg-path {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 0;
+    transition: stroke 0.24s ease;
+}
+.network-quick-tile:hover .network-quick-tile-icon,
+.monitoring-technology.network-android-tile:hover .network-quick-tile-icon,
+.network-quick-tile[data-active="true"] .network-quick-tile-icon {
+    transform: scale(1.08) rotate(-2deg);
+    border-color: var(--monitoring-chart-primary);
+    box-shadow: 0 0 12px rgba(0, 212, 255, 0.24);
+}
+.network-connection-tile:hover .network-row-svg-icon {
+    transform: scale(1.08);
+    border-color: var(--monitoring-chart-primary);
+}
+.network-quick-tile:hover .network-tile-svg-path,
+.monitoring-technology.network-android-tile:hover .network-tile-svg-path,
+.network-connection-tile:hover .network-tile-svg-path,
+.network-quick-tile[data-active="true"] .network-tile-svg-path {
+    animation: networkSvgRedraw 0.68s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--svg-delay, 0ms);
 }
 .network-quick-tile-top {
     display: flex;
@@ -71,11 +307,10 @@
     border: 1px solid var(--theme-shade-10);
 }
 .network-quick-tile-chevron {
-    position: absolute;
-    right: 14px;
-    bottom: 12px;
-    font-size: 12px;
-    opacity: 0.65;
+    font-size: 13px;
+    opacity: 0.72;
+    flex-shrink: 0;
+    margin-left: 4px;
     transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .network-quick-tile[data-active="true"] .network-quick-tile-chevron {
@@ -174,20 +409,79 @@
     align-items: center;
 }
 
+@keyframes networkGroupRippleOpen {
+    0% {
+        opacity: 0;
+        transform: scale(0.94);
+        clip-path: circle(8% at var(--drop-x, 50%) var(--drop-y, 28px));
+    }
+    60% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        clip-path: circle(150% at var(--drop-x, 50%) var(--drop-y, 28px));
+    }
+}
+@keyframes networkGroupWave {
+    0% {
+        transform: translate(-50%, -50%) scale(0.05);
+        opacity: 0.65;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(6.5);
+        opacity: 0;
+    }
+}
 .network-control-group {
     min-width: 0;
     background: var(--theme-shade-3);
     border: 1px solid var(--theme-shade-8);
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 20px;
-    transition: border-color 0.25s ease, background-color 0.25s ease;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    transform-origin: var(--drop-x, 50%) var(--drop-y, 28px);
+    animation: networkGroupRippleOpen 0.52s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.3s ease;
+}
+.network-control-group.is-ripple-opening,
+.network-control-group[data-ripple-open="true"] {
+    animation: networkGroupRippleOpen 0.52s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.network-control-group > .network-drop-ripple {
+    width: 240px;
+    height: 240px;
+    animation: networkGroupWave 0.78s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.network-control-group > *:not(.network-drop-ripple):not(.network-tile-spread) {
+    position: relative;
+    z-index: 1;
 }
 .network-control-group h3 { margin-top: 0; margin-bottom: 8px; }
-.network-control-selector-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 14px;
-    margin: 12px 0;
+/* Hide legacy desktop dropdowns and raw action bars so the UI is strictly Android phone Quick-Settings style */
+.network-control-selector-row,
+.network-control-actions-bar {
+    display: none;
+}
+.network-tile-ssid {
+    font-weight: 700;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    color: var(--monitoring-chart-primary);
+    background: var(--theme-shade-3);
+    border: 1px solid var(--monitoring-chart-primary);
+}
+.network-tile-bssid {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11.5px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: var(--theme-shade-3);
+    border: 1px solid var(--theme-shade-9);
 }
 .network-control-field {
     display: flex;
@@ -301,6 +595,9 @@
     background: var(--theme-shade-1);
     border: 1px solid var(--theme-shade-9);
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
     transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
                 border-color 0.24s ease,
                 background-color 0.24s ease,

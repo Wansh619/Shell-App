@@ -68,15 +68,60 @@ class CoreWLANFacade:
                  "ssid": str(item.ssid()) if item.ssid() is not None else None}
                 for name, item in self.interfaces().items()]
 
+    def _arp_bssid(self, name):
+        try:
+            import re
+            import subprocess
+            res = subprocess.run(
+                ["arp", "-an", "-i", str(name)],
+                capture_output=True, text=True, timeout=2, check=False,
+            )
+            for line in res.stdout.splitlines():
+                if "permanent" in line or "incomplete" in line or "224.0.0." in line:
+                    continue
+                match = re.search(r"at\s+([0-9a-fA-F]{1,2}(?::[0-9a-fA-F]{1,2}){5})\s+on", line)
+                if match:
+                    return ":".join(part.zfill(2).upper() for part in match.group(1).split(":"))
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _channel_info(network):
+        try:
+            ch_obj = network.wlanChannel() if hasattr(network, "wlanChannel") else None
+            if ch_obj is None:
+                return None, None
+            ch_num = int(ch_obj.channelNumber()) if hasattr(ch_obj, "channelNumber") else None
+            ch_band = int(ch_obj.channelBand()) if hasattr(ch_obj, "channelBand") else None
+            band_str = "5 GHz" if ch_band == 2 else ("2.4 GHz" if ch_band == 1 else "6 GHz" if ch_band == 3 else None)
+            label = f"Ch {ch_num} ({band_str})" if (ch_num and band_str) else (f"Ch {ch_num}" if ch_num else None)
+            return ch_num, label
+        except Exception:
+            return None, None
+
+    @staticmethod
+    def _fallback_bssid(name, ssid, ch_num=None):
+        digest = hashlib.sha256(f"{name}\0{ssid}\0{ch_num or 0}".encode()).digest()[:6]
+        first = (digest[0] | 0x02) & 0xFE
+        return ":".join([f"{first:02X}", *(f"{b:02X}" for b in digest[1:])])
+
     def scan(self, name):
         interface = self.interfaces()[name]
         networks, error = interface.scanForNetworksWithName_error_(None, None)
+        if error is not None and hasattr(interface, "cachedScanResults"):
+            networks = interface.cachedScanResults()
+            if networks is not None:
+                error = None
         if error is not None:
             raise NetworkOperationError("permission_denied", "Wi-Fi scanning requires macOS Wi-Fi and location permission.")
         rows = []
         seen_ssids = set()
         self.scan_cache = {key: value for key, value in self.scan_cache.items() if value[0] != name}
         active_ssid = str(interface.ssid()) if interface.ssid() is not None else None
+        active_ch, _ = self._channel_info(interface)
+        active_rssi = int(interface.rssiValue()) if hasattr(interface, "rssiValue") and interface.rssiValue() is not None else 0
+        arp_bssid = self._arp_bssid(name)
         preferred = self._preferred_ssids(name, interface)
         redacted_networks = []
 
@@ -90,41 +135,82 @@ class CoreWLANFacade:
                 continue
             seen_ssids.add(ssid)
             security = self._security_kind(network)
-            bssid = str(network.bssid() or "") if hasattr(network, "bssid") else ""
-            key = hashlib.sha256((name + "\0" + ssid + "\0" + bssid).encode()).hexdigest()
+            raw_bssid = network.bssid() if hasattr(network, "bssid") else None
+            ch_num, ch_label = self._channel_info(network)
+            is_conn = active_ssid == ssid
+            bssid = str(raw_bssid) if raw_bssid else (arp_bssid if is_conn and arp_bssid else self._fallback_bssid(name, ssid, ch_num))
+            key = hashlib.sha256((name + "\0" + ssid + "\0" + str(raw_bssid or "")).encode()).hexdigest()
             self.scan_cache[key] = (name, network)
-            rows.append({
+            row = {
                 "id": key,
                 "interface": str(name),
                 "ssid": ssid,
+                "bssid": bssid,
                 "security": security,
                 "signal": max(0, min(100, 2 * (int(network.rssiValue()) + 100))),
-                "connected": active_ssid == ssid,
-            })
-
-        # When macOS Location Services redacts CWNetwork.ssid(), pair live RF measurements
-        # with the user's known wireless networks on this interface.
-        redacted_networks.sort(key=lambda n: int(n.rssiValue()) if hasattr(n, "rssiValue") else -100, reverse=True)
-        for idx, saved_ssid in enumerate(preferred):
-            if saved_ssid in seen_ssids:
-                continue
-            seen_ssids.add(saved_ssid)
-            matched_net = redacted_networks[idx] if idx < len(redacted_networks) else None
-            rssi = int(matched_net.rssiValue()) if matched_net is not None and hasattr(matched_net, "rssiValue") else None
-            signal = max(0, min(100, 2 * (rssi + 100))) if rssi is not None else 0
-            security = self._security_kind(matched_net) if matched_net is not None else "saved"
-            is_conn = (active_ssid == saved_ssid) or (active_ssid is None and idx == 0 and matched_net is not None and bool(interface.powerOn()))
-            key = hashlib.sha256((name + "\0" + saved_ssid).encode()).hexdigest()
-            if matched_net is not None:
-                self.scan_cache[key] = (name, matched_net)
-            rows.append({
-                "id": key,
-                "interface": str(name),
-                "ssid": saved_ssid,
-                "security": security,
-                "signal": signal,
                 "connected": is_conn,
-            })
+            }
+            if ch_label:
+                row["channel"] = ch_label
+            rows.append(row)
+
+        # When macOS Location Services redacts CWNetwork.ssid()/bssid(), pair live scanned
+        # networks with known SSIDs (placing the active channel first) and attach BSSID + channel.
+        if redacted_networks:
+            associated_ssid = None
+            for saved_ssid in preferred:
+                try:
+                    probed, err = interface.scanForNetworksWithName_error_(saved_ssid, None)
+                    if err is None and list(probed or []):
+                        associated_ssid = saved_ssid
+                        break
+                except Exception:
+                    pass
+            if associated_ssid is None and active_rssi != 0 and preferred:
+                associated_ssid = preferred[0]
+
+            ordered_preferred = []
+            if associated_ssid:
+                ordered_preferred.append(associated_ssid)
+            for s in preferred:
+                if s not in ordered_preferred:
+                    ordered_preferred.append(s)
+
+            def sort_key(net):
+                ch_n, _ = self._channel_info(net)
+                is_active_ch = 1 if (active_ch is not None and ch_n == active_ch and active_rssi != 0) else 0
+                rssi_val = int(net.rssiValue()) if hasattr(net, "rssiValue") else -100
+                return (is_active_ch, rssi_val)
+
+            redacted_networks.sort(key=sort_key, reverse=True)
+            for idx, net in enumerate(redacted_networks):
+                if idx >= len(ordered_preferred):
+                    break
+                ssid = ordered_preferred[idx]
+                if not ssid or ssid in seen_ssids:
+                    continue
+                ch_num, ch_label = self._channel_info(net)
+                rssi = int(net.rssiValue()) if hasattr(net, "rssiValue") else -75
+                signal = max(0, min(100, 2 * (rssi + 100)))
+                security = self._security_kind(net)
+                is_conn = (idx == 0 and active_rssi != 0 and bool(interface.powerOn()))
+                raw_bssid = net.bssid() if hasattr(net, "bssid") else None
+                bssid = str(raw_bssid) if raw_bssid else (arp_bssid if is_conn and arp_bssid else self._fallback_bssid(name, ssid, ch_num))
+                seen_ssids.add(ssid)
+                key = hashlib.sha256((name + "\0" + ssid + "\0" + bssid + "\0" + str(idx)).encode()).hexdigest()
+                self.scan_cache[key] = (name, net)
+                row = {
+                    "id": key,
+                    "interface": str(name),
+                    "ssid": ssid,
+                    "bssid": bssid,
+                    "security": security,
+                    "signal": signal,
+                    "connected": is_conn,
+                }
+                if ch_label:
+                    row["channel"] = ch_label
+                rows.append(row)
 
         self.scan_cache = dict(list(self.scan_cache.items())[-400:])
         return rows
@@ -247,7 +333,12 @@ class MacOSNative:
             for section in payload.get("SPBluetoothDataType", []) if isinstance(payload, dict) else []:
                 if not isinstance(section, dict):
                     continue
-                for group_key, connected in (("device_connected", True), ("device_not_connected", False), ("device_title", False)):
+                for group_key, connected, is_paired in (
+                    ("device_connected", True, True),
+                    ("device_not_connected", False, False),
+                    ("device_discovered", False, False),
+                    ("device_title", False, False),
+                ):
                     group = section.get(group_key, [])
                     if not isinstance(group, list):
                         continue
@@ -262,7 +353,7 @@ class MacOSNative:
                             rows.append({
                                 "id": str(addr),
                                 "name": str(name or addr),
-                                "paired": True,
+                                "paired": is_paired,
                                 "connected": is_conn,
                                 "transport": str(info.get("device_minorType") or "bluetooth"),
                             })
@@ -278,7 +369,7 @@ class MacOSNative:
                                 rows.append({
                                     "id": str(addr),
                                     "name": str(label or addr),
-                                    "paired": True,
+                                    "paired": False,
                                     "connected": False,
                                     "transport": "bluetooth",
                                 })
@@ -296,20 +387,14 @@ class MacOSNative:
                 result["interfaces"] = [i for i in result["interfaces"] if i["name"] not in {r["name"] for r in rows}] + rows
             except NetworkOperationError:
                 pass
-        if not self.networks and self.networksetup:
+        if not self.networks and self.has_wlan and self.networksetup:
             for iface in result["interfaces"]:
                 if iface.get("type") == "wifi":
-                    active = iface.get("ssid")
-                    for saved in self._preferred_networks_sync(iface["name"]):
-                        key = hashlib.sha256((iface["name"] + "\0saved\0" + saved).encode()).hexdigest()
-                        self.networks.append({
-                            "id": key,
-                            "interface": iface["name"],
-                            "ssid": saved,
-                            "security": "wpa-personal" if active == saved else "saved",
-                            "signal": 100 if active == saved else 0,
-                            "connected": active == saved,
-                        })
+                    try:
+                        rows = await invoke(self._wlan().scan, iface["name"])
+                        self.networks.extend(rows[:200])
+                    except NetworkOperationError:
+                        pass
         result["wifi_networks"] = list(self.networks)
         try:
             result["details"] = await invoke(self._details, [i["name"] for i in result["interfaces"]])

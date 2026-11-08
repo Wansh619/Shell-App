@@ -2,7 +2,7 @@ import Plugin from "../plugin.js";
 import MonitoringDashboard from "../monitoring/dashboard.js";
 import { animateNumber, bytes, details, el, number, text } from "../monitoring/core.js";
 import TabController from "../monitoring/tabs.js";
-import { NetworkControls } from "./controls.js";
+import { NetworkControls, createTechSvg, triggerDropRipple } from "./controls.js";
 
 const TECHNOLOGIES = [["wifi", "Wi-Fi", "wifi"], ["ethernet", "Ethernet", "interfaces"], ["bluetooth", "Bluetooth", "bluetooth"], ["hotspot", "Hotspot", "wifi"]];
 const LINK_STATES = {
@@ -31,15 +31,25 @@ export class NetworkDashboard extends MonitoringDashboard {
             section.dataset.targetSection = targetSection;
             section.setAttribute("role", "button");
             section.tabIndex = 0;
+            const spread = el("span", "network-tile-spread");
+            spread.setAttribute("aria-hidden", "true");
+            const topRow = el("div", "network-tech-tile-header");
+            const iconWrap = el("span", "network-quick-tile-icon");
+            iconWrap.append(createTechSvg(key));
+            const heading = el("h2", "", name);
+            topRow.append(iconWrap, heading);
             const state = el("p", "monitoring-link-state");
             const names = el("p", "monitoring-muted");
-            section.append(el("h2", "", name), state, names);
-            const onActivate = () => {
+            section.append(spread, topRow, state, names);
+            const onActivate = (ev) => {
+                triggerDropRipple(section, ev);
                 this.tabs?.select("controls");
                 this.controls?.selectSection?.(targetSection);
             };
+            const onHover = (ev) => triggerDropRipple(section, ev);
+            section.addEventListener("mouseenter", onHover);
             section.addEventListener("click", onActivate);
-            this.techListeners.push([section, "click", onActivate]);
+            this.techListeners.push([section, "mouseenter", onHover], [section, "click", onActivate]);
             technologies.append(section);
             this.technologies.set(key, { section, state, names, targetSection });
         }
@@ -87,7 +97,7 @@ export class NetworkDashboard extends MonitoringDashboard {
 
         this.tabs = new TabController(this.content, [
             { id: "overview", label: "Overview & Traffic", content: overviewPane },
-            { id: "controls", label: "Wi-Fi, Bluetooth & Link Controls", content: controlsPane },
+            { id: "controls", label: "Connect", content: controlsPane },
             { id: "inspector", label: "Interface & Subnet Inspector", content: inspectorPane },
             { id: "capabilities", label: "Capabilities", content: capabilitiesPane },
         ], { onChange: () => this.requestRender() });

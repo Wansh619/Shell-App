@@ -340,22 +340,29 @@ test("Android quick-settings tiles, drop-down transition, interface switcher, la
         },
     }));
 
-    // 1. Android Quick-Settings tiles and drop-down panel state
+    // 1. Android Quick-Settings ControlTile Menu-to-Container drilldown and Back button
     assert.equal(view.quickTiles.size, 4);
+    assert.equal(view.root.dataset.viewMode, "menu");
     assert.equal(view.activeSection, "wifi");
     assert.equal(view.tabs.tabs.get("wifi").panel.dataset.dropdown, "open");
     assert.equal(view.quickTiles.get("wifi").tile.dataset.state, "connected");
     view.quickTiles.get("bluetooth").tile.fire("click");
+    assert.equal(view.root.dataset.viewMode, "container");
     assert.equal(view.activeSection, "bluetooth");
     assert.equal(view.tabs.activeId, "bluetooth");
     assert.equal(view.tabs.tabs.get("bluetooth").panel.dataset.dropdown, "open");
     assert.equal(view.tabs.tabs.get("wifi").panel.dataset.dropdown, "closed");
+    view.bluetoothPanel.backBtn.fire("click");
+    assert.equal(view.root.dataset.viewMode, "menu");
     view.quickTiles.get("wifi").tile.fire("click");
+    assert.equal(view.root.dataset.viewMode, "container");
     assert.equal(view.activeSection, "wifi");
 
-    // 2. Labeled Wi-Fi list items (Connected to wlan0 & Open)
+    // 2. Labeled Wi-Fi list items (SSID name, Connected to wlan0 & Open)
     assert.equal(view.wifiPanel.tileGrid.children.length, 2);
+    assert.match(view.wifiPanel.tileGrid.children[0].textContent, /SSID: OfficeNet/);
     assert.match(view.wifiPanel.tileGrid.children[0].textContent, /Connected to wlan0/);
+    assert.match(view.wifiPanel.tileGrid.children[1].textContent, /SSID: FreeCafe/);
     assert.match(view.wifiPanel.tileGrid.children[1].textContent, /Open/);
 
     // 3. Clicking a Wi-Fi connection item opens the detail pop-up card with Connect, Disconnect, Close

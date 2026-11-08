@@ -2,21 +2,151 @@ import { details, el, text } from "../monitoring/core.js";
 import TabController from "../monitoring/tabs.js";
 
 const LABELS = {
-    wifi_scan: "Scan Wi-Fi networks", wifi_connect: "Connect Wi-Fi", wifi_disconnect: "Disconnect Wi-Fi",
-    bluetooth_refresh: "Refresh paired devices", bluetooth_connect: "Connect Bluetooth",
+    wifi_scan: "Scan available Wi-Fi", wifi_connect: "Connect Wi-Fi", wifi_disconnect: "Disconnect Wi-Fi",
+    bluetooth_refresh: "Scan available Bluetooth", bluetooth_connect: "Connect Bluetooth",
     bluetooth_disconnect: "Disconnect Bluetooth", interface_up: "Bring interface up",
     interface_down: "Bring interface down", checkpoint_revert: "Revert checkpointed network change",
 };
 const QUICK_SECTIONS = [
-    ["wifi", "Wi-Fi", "Wireless networks"],
-    ["bluetooth", "Bluetooth", "Paired & available"],
-    ["interfaces", "Interfaces", "Wired & wireless"],
+    ["wifi", "Wi-Fi", "Available wireless"],
+    ["bluetooth", "Bluetooth", "Available devices"],
+    ["interfaces", "Interfaces", "Hardware links"],
     ["operations", "Operations", "Control activity"],
 ];
 const GUARDED = new Set(["wifi_connect", "wifi_disconnect", "bluetooth_disconnect", "interface_down", "checkpoint_revert"]);
 const FINAL = new Set(["succeeded", "failed", "cancelled", "rolled_back", "expired"]);
 const list = (value) => Array.isArray(value) ? value.slice(0, 256) : [];
 const expiry = (value) => typeof value === "number" ? value * 1000 : Date.parse(value);
+
+function svgEl(tag, attrs = {}, className = "") {
+    const doc = globalThis.document;
+    const node = typeof doc?.createElementNS === "function"
+        ? doc.createElementNS("http://www.w3.org/2000/svg", tag)
+        : doc.createElement(tag);
+    if (className) {
+        if (typeof node.setAttribute === "function") node.setAttribute("class", className);
+        else node.className = className;
+    }
+    for (const [k, v] of Object.entries(attrs)) {
+        node.setAttribute?.(k, String(v));
+    }
+    return node;
+}
+
+export function createTechSvg(kind) {
+    const svg = svgEl("svg", {
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+        "aria-hidden": "true",
+    }, "network-tile-svg");
+
+    const paths = {
+        wifi: [
+            "M2 8.82a15 15 0 0 1 20 0",
+            "M5 12.86a10 10 0 0 1 14 0",
+            "M8.5 16.43a5 5 0 0 1 7 0",
+            "M12 20h.01",
+        ],
+        bluetooth: [
+            "M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11",
+            "M18.5 8.5a5 5 0 0 1 0 7",
+            "M5.5 8.5a5 5 0 0 0 0 7",
+        ],
+        interfaces: [
+            "M4 5h16a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
+            "M8 14v5",
+            "M16 14v5",
+            "M5 19h14",
+            "M8 9h.01",
+            "M12 9h.01",
+            "M16 9h.01",
+        ],
+        ethernet: [
+            "M4 5h16a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
+            "M8 14v5",
+            "M16 14v5",
+            "M5 19h14",
+            "M8 9h.01",
+            "M12 9h.01",
+            "M16 9h.01",
+        ],
+        hotspot: [
+            "M4.9 19.1C1 15.2 1 8.8 4.9 4.9",
+            "M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5",
+            "M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5",
+            "M19.1 4.9C23 8.8 23 15.1 19.1 19",
+            "M12 12v8",
+        ],
+        operations: [
+            "M22 12h-4l-3 9L9 3l-3 9H2",
+        ],
+        back: [
+            "M19 12H5",
+            "M12 19l-7-7 7-7",
+        ],
+    }[kind] || ["M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"];
+
+    paths.forEach((d, index) => {
+        const p = svgEl("path", {
+            d,
+            pathLength: "100",
+            style: `--svg-delay: ${index * 65}ms`,
+        }, "network-tile-svg-path");
+        svg.append(p);
+    });
+    return svg;
+}
+
+export function triggerDropRipple(node, ev) {
+    if (!node) return;
+    let x = "28px";
+    let y = "50%";
+    if (ev && typeof ev.clientX === "number" && typeof node.getBoundingClientRect === "function") {
+        const rect = node.getBoundingClientRect();
+        if (rect && rect.width > 0 && rect.height > 0) {
+            x = `${Math.round(ev.clientX - rect.left)}px`;
+            y = `${Math.round(ev.clientY - rect.top)}px`;
+        }
+    }
+    if (node.style && typeof node.style.setProperty === "function") {
+        node.style.setProperty("--drop-x", x);
+        node.style.setProperty("--drop-y", y);
+    }
+    const ripple = el("span", "network-drop-ripple");
+    ripple.setAttribute("aria-hidden", "true");
+    if (ripple.style && typeof ripple.style.setProperty === "function") {
+        ripple.style.setProperty("--drop-x", x);
+        ripple.style.setProperty("--drop-y", y);
+    }
+    node.append(ripple);
+    const cleanup = () => ripple.remove?.();
+    ripple.addEventListener?.("animationend", cleanup);
+    setTimeout(cleanup, 750);
+}
+
+function createBackButton(controls) {
+    const backBtn = el("button", "network-tile-btn network-back-btn");
+    backBtn.type = "button";
+    backBtn.dataset.action = "back-to-menu";
+    backBtn.setAttribute("aria-label", "Back to connection tiles");
+    const spread = el("span", "network-tile-spread");
+    spread.setAttribute("aria-hidden", "true");
+    const iconWrap = el("span", "network-back-btn-icon");
+    iconWrap.append(createTechSvg("back"));
+    const label = el("span", "network-back-btn-label", "Back");
+    backBtn.append(spread, iconWrap, label);
+    controls.listen(backBtn, "mouseenter", (ev) => triggerDropRipple(backBtn, ev));
+    controls.listen(backBtn, "click", (ev) => {
+        ev?.stopPropagation?.();
+        triggerDropRipple(backBtn, ev);
+        controls.openMenu();
+    });
+    return backBtn;
+}
 
 export class WiFiControlPanel {
     constructor(controls) {
@@ -25,31 +155,25 @@ export class WiFiControlPanel {
         this.root = el("div", "network-control-group");
 
         const panelHeader = el("div", "network-panel-header");
-        panelHeader.append(el("h3", "", "Wi-Fi connections"));
+        const titleWrap = el("div", "network-panel-title-wrap");
+        this.backBtn = createBackButton(controls);
+        const headerIcon = el("span", "network-panel-header-icon");
+        headerIcon.append(createTechSvg("wifi"));
+        titleWrap.append(this.backBtn, headerIcon, el("h3", "", "Available Wi-Fi Connections"));
+        panelHeader.append(titleWrap);
         this.interfaceSwitcher = el("div", "network-interface-switcher");
         this.interfacePills = el("div", "network-interface-pills");
         this.interfaceToggleBtn = el("button", "network-tile-btn network-interface-toggle-btn", "Switch Adapter");
         this.interfaceToggleBtn.type = "button";
         this.interfaceToggleBtn.dataset.action = "toggle-interface";
-        this.quickScanBtn = el("button", "network-tile-btn network-quick-scan-btn", "Scan");
+        this.quickScanBtn = el("button", "network-tile-btn is-primary network-quick-scan-btn", "Scan Available");
         this.quickScanBtn.type = "button";
         this.quickScanBtn.dataset.action = "quick-scan";
         this.interfaceSwitcher.append(this.interfacePills, this.interfaceToggleBtn, this.quickScanBtn);
         panelHeader.append(this.interfaceSwitcher);
         this.root.append(panelHeader);
 
-        this.root.append(el("p", "monitoring-muted", "Select a discovered network from the dropdown or click a connection tile below. Credentials are requested only when a network requires authentication."));
-
-        const selectorRow = el("div", "network-control-selector-row");
-        this.wifiInterface = controls.select(selectorRow, "Wi-Fi interface");
-        this.network = controls.select(selectorRow, "Available Wi-Fi connections");
-        this.root.append(selectorRow);
-
-        const actionsBar = el("div", "network-control-actions-bar");
-        controls.action(actionsBar, "wifi_scan", () => ({ interface: this.wifiInterface.value }));
-        controls.action(actionsBar, "wifi_connect", () => this.buildConnectParams(), (params) => this.handleConnectClick(params));
-        controls.action(actionsBar, "wifi_disconnect", () => ({ interface: this.wifiInterface.value }));
-        this.root.append(actionsBar);
+        this.root.append(el("p", "monitoring-muted", "Showing Wi-Fi networks available right now. Click any available connection below to inspect details or connect."));
 
         // Connection Detail Pop-up Card — opens when clicking a connection list item
         this.detailPopup = el("div", "network-detail-popup");
@@ -99,9 +223,20 @@ export class WiFiControlPanel {
         this.authDrawer.append(this.authPromptTitle, this.authPromptHint, this.authFieldsWrap, authActions);
         this.root.append(this.authDrawer);
 
-        this.tilesHeader = el("h4", "network-tiles-heading", "Available Wi-Fi Connections");
+        this.tilesHeader = el("h4", "network-tiles-heading", "Connections Available Right Now");
         this.tileGrid = el("div", "network-tile-grid network-connection-list");
         this.root.append(this.tilesHeader, this.tileGrid);
+
+        const selectorRow = el("div", "network-control-selector-row");
+        this.wifiInterface = controls.select(selectorRow, "Wi-Fi interface");
+        this.network = controls.select(selectorRow, "Available Wi-Fi connections");
+        this.root.append(selectorRow);
+
+        const actionsBar = el("div", "network-control-actions-bar");
+        controls.action(actionsBar, "wifi_scan", () => ({ interface: this.wifiInterface.value }));
+        controls.action(actionsBar, "wifi_connect", () => this.buildConnectParams(), (params) => this.handleConnectClick(params));
+        controls.action(actionsBar, "wifi_disconnect", () => ({ interface: this.wifiInterface.value }));
+        this.root.append(actionsBar);
 
         controls.listen(this.security, "change", () => this.securityFields());
         controls.listen(this.wifiInterface, "change", () => {
@@ -181,8 +316,7 @@ export class WiFiControlPanel {
         const canDisconnect = this.controls.snapshot?.capabilities?.wifi_disconnect?.supported === true;
         const iface = item.interface || this.wifiInterface.value || "wlan0";
         const statusLabel = item.connected ? `Connected to ${iface}` :
-            item.security === "open" ? "Open" :
-            item.security === "saved" ? "Saved" : "WPA-Personal";
+            item.security === "open" ? "Open · Available" : "Available · WPA-Personal";
         this.popupTitle.textContent = item.ssid || "(Hidden SSID)";
         this.popupBadge.textContent = statusLabel;
         this.popupBadge.dataset.state = item.connected ? "connected" : (item.security === "open" ? "open" : "available");
@@ -190,6 +324,8 @@ export class WiFiControlPanel {
         const sigVal = typeof item.signal === "number" && Number.isFinite(item.signal) ? `${Math.max(0, Math.min(100, item.signal))}%` : "N/A";
         const rows = [
             ["SSID", text(item.ssid || "(Hidden SSID)")],
+            ["BSSID", text(item.bssid || "N/A")],
+            ...(item.channel ? [["Channel", text(item.channel)]] : []),
             ["Interface", text(iface)],
             ["Status", statusLabel],
             ["Security", text(item.security || "wpa-personal")],
@@ -326,25 +462,35 @@ export class WiFiControlPanel {
                 tile.classList.toggle("is-selected", selected);
                 tile.classList.toggle("is-connected", Boolean(item.connected));
             }
+            const spread = el("span", "network-tile-spread");
+            spread.setAttribute("aria-hidden", "true");
             const header = el("div", "network-tile-header");
-            const title = el("strong", "network-tile-title", item.ssid || "(Hidden SSID)");
+            const titleWrap = el("div", "network-tile-title-row");
+            const rowIcon = el("span", "network-row-svg-icon");
+            rowIcon.append(createTechSvg("wifi"));
+            const ssidLabel = item.ssid || "(Hidden SSID)";
+            const title = el("strong", "network-tile-title", ssidLabel);
+            titleWrap.append(rowIcon, title);
             const badgeText = item.connected ? `Connected to ${iface}` :
-                item.security === "open" ? "Open" :
-                item.security === "saved" ? "Saved" : "WPA-Personal";
+                item.security === "open" ? "Open" : "Available";
             const badge = el("span", "network-tile-badge", badgeText);
             badge.dataset.state = item.connected ? "connected" :
-                (item.security === "open" ? "open" : item.security === "saved" ? "saved" : "secured");
-            header.append(title, badge);
+                (item.security === "open" ? "open" : "available");
+            header.append(titleWrap, badge);
 
             const meta = el("div", "network-tile-meta");
-            const secTag = item.security === "wpa-personal" ? "🔒 WPA-Personal · Secured" :
-                item.security === "open" ? "🌐 Open · No password" :
-                item.security === "saved" ? "💾 Saved OS Profile" : text(item.security);
+            const ssidTag = `SSID: ${text(ssidLabel)}`;
+            const bssidText = item.bssid ? `BSSID: ${text(item.bssid)}` : "BSSID: N/A";
+            const secTag = item.security === "open" ? "Open · No password" :
+                item.security === "enterprise" ? "WPA-Enterprise" : "WPA-Personal · Secured";
             const sigVal = typeof item.signal === "number" && Number.isFinite(item.signal) ? Math.max(0, Math.min(100, item.signal)) : 0;
             meta.append(
+                el("span", "network-tile-ssid", ssidTag),
+                el("span", "network-tile-bssid", bssidText),
+                ...(item.channel ? [el("span", "", text(item.channel))] : []),
                 el("span", "", secTag),
-                el("span", "", item.connected ? `Connected (${iface})` : `Adapter: ${iface}`),
-                el("span", "", sigVal > 0 ? `Signal ${sigVal}%` : "Saved"),
+                el("span", "", item.connected ? `Connected (${iface})` : `Available on ${iface}`),
+                el("span", "", sigVal > 0 ? `Signal ${sigVal}%` : "Available"),
             );
 
             const barTrack = el("div", "monitoring-progress-track");
@@ -377,13 +523,15 @@ export class WiFiControlPanel {
             });
             footer.append(btn, detailsBtn);
 
-            tile.addEventListener("click", () => {
+            tile.addEventListener("mouseenter", (ev) => triggerDropRipple(tile, ev));
+            tile.addEventListener("click", (ev) => {
+                triggerDropRipple(tile, ev);
                 this.network.value = item.id;
                 this.syncFromSelectedNetwork(false);
                 this.openDetailPopup(item);
                 this.renderTiles(networks);
             });
-            tile.append(header, meta, barTrack, footer);
+            tile.append(spread, header, meta, barTrack, footer);
             return tile;
         });
         this.tileGrid.replaceChildren(...tiles);
@@ -400,25 +548,20 @@ export class BluetoothControlPanel {
         this.selectedDetailItem = null;
         this.root = el("div", "network-control-group");
         const panelHeader = el("div", "network-panel-header");
-        panelHeader.append(el("h3", "", "Bluetooth devices"));
+        const titleWrap = el("div", "network-panel-title-wrap");
+        this.backBtn = createBackButton(controls);
+        const headerIcon = el("span", "network-panel-header-icon");
+        headerIcon.append(createTechSvg("bluetooth"));
+        titleWrap.append(this.backBtn, headerIcon, el("h3", "", "Available Bluetooth Connections"));
+        panelHeader.append(titleWrap);
         this.interfaceSwitcher = el("div", "network-interface-switcher");
-        this.quickRefreshBtn = el("button", "network-tile-btn network-quick-scan-btn", "Scan / Refresh");
+        this.quickRefreshBtn = el("button", "network-tile-btn is-primary network-quick-scan-btn", "Scan Available");
         this.quickRefreshBtn.type = "button";
         this.interfaceSwitcher.append(this.quickRefreshBtn);
         panelHeader.append(this.interfaceSwitcher);
         this.root.append(panelHeader);
 
-        this.root.append(el("p", "monitoring-muted", "Select a Bluetooth device from the dropdown or click a device in the list below to view details, connect, or disconnect."));
-        const selectorRow = el("div", "network-control-selector-row");
-        this.device = controls.select(selectorRow, "Available paired Bluetooth devices");
-        this.root.append(selectorRow);
-        controls.listen(this.device, "change", () => controls.render());
-        controls.listen(this.quickRefreshBtn, "click", () => controls.dispatch("bluetooth_refresh", {}));
-        const actionsBar = el("div", "network-control-actions-bar");
-        controls.action(actionsBar, "bluetooth_refresh", () => ({}));
-        controls.action(actionsBar, "bluetooth_connect", () => ({ device_id: this.device.value }));
-        controls.action(actionsBar, "bluetooth_disconnect", () => ({ device_id: this.device.value }));
-        this.root.append(actionsBar);
+        this.root.append(el("p", "monitoring-muted", "Showing Bluetooth devices available right now. Click any device below to view details, connect, or disconnect."));
 
         this.detailPopup = el("div", "network-detail-popup");
         this.detailPopup.hidden = true;
@@ -442,6 +585,21 @@ export class BluetoothControlPanel {
         this.detailPopup.append(popupHeader, this.popupBody, this.popupActions);
         this.root.append(this.detailPopup);
 
+        this.tilesHeader = el("h4", "network-tiles-heading", "Connections Available Right Now");
+        this.tileGrid = el("div", "network-tile-grid network-connection-list");
+        this.root.append(this.tilesHeader, this.tileGrid);
+
+        const selectorRow = el("div", "network-control-selector-row");
+        this.device = controls.select(selectorRow, "Available Bluetooth connections");
+        this.root.append(selectorRow);
+        controls.listen(this.device, "change", () => controls.render());
+        controls.listen(this.quickRefreshBtn, "click", () => controls.dispatch("bluetooth_refresh", {}));
+        const actionsBar = el("div", "network-control-actions-bar");
+        controls.action(actionsBar, "bluetooth_refresh", () => ({}));
+        controls.action(actionsBar, "bluetooth_connect", () => ({ device_id: this.device.value }));
+        controls.action(actionsBar, "bluetooth_disconnect", () => ({ device_id: this.device.value }));
+        this.root.append(actionsBar);
+
         controls.listen(this.popupConnectBtn, "click", () => {
             const id = this.selectedDetailItem?.id || this.device.value;
             if (id) {
@@ -459,10 +617,6 @@ export class BluetoothControlPanel {
             }
         });
         controls.listen(this.popupCloseBtn, "click", () => this.closeDetailPopup());
-
-        this.tilesHeader = el("h4", "network-tiles-heading", "Available Bluetooth Devices");
-        this.tileGrid = el("div", "network-tile-grid network-connection-list");
-        this.root.append(this.tilesHeader, this.tileGrid);
     }
 
     openDetailPopup(item) {
@@ -502,8 +656,8 @@ export class BluetoothControlPanel {
         if (!devices.length) {
             const emptyTile = el("div", "network-connection-tile is-empty");
             emptyTile.append(
-                el("strong", "network-tile-title", "No Bluetooth devices found"),
-                el("p", "monitoring-muted", "Click 'Refresh paired devices' above to query the OS Bluetooth inventory.")
+                el("strong", "network-tile-title", "No Bluetooth connections available right now"),
+                el("p", "monitoring-muted", "Click 'Scan Available' above to discover nearby available Bluetooth devices.")
             );
             this.tileGrid.replaceChildren(emptyTile);
             return;
@@ -517,18 +671,24 @@ export class BluetoothControlPanel {
                 tile.classList.toggle("is-selected", selected);
                 tile.classList.toggle("is-connected", Boolean(item.connected));
             }
+            const spread = el("span", "network-tile-spread");
+            spread.setAttribute("aria-hidden", "true");
             const header = el("div", "network-tile-header");
+            const titleWrap = el("div", "network-tile-title-row");
+            const rowIcon = el("span", "network-row-svg-icon");
+            rowIcon.append(createTechSvg("bluetooth"));
             const title = el("strong", "network-tile-title", item.name || item.id);
-            const badgeText = item.connected ? "Connected" : (item.paired ? "Paired" : "Available");
+            titleWrap.append(rowIcon, title);
+            const badgeText = item.connected ? "Connected" : "Available";
             const badge = el("span", "network-tile-badge", badgeText);
-            badge.dataset.state = item.connected ? "connected" : (item.paired ? "paired" : "available");
-            header.append(title, badge);
+            badge.dataset.state = item.connected ? "connected" : "available";
+            header.append(titleWrap, badge);
 
             const meta = el("div", "network-tile-meta");
             meta.append(
                 el("span", "", `ID: ${text(item.id)}`),
                 el("span", "", `Transport: ${text(item.transport || "bluetooth")}`),
-                el("span", "", item.connected ? "Connected" : (item.paired ? "Paired profile" : "Available")),
+                el("span", "", item.connected ? "Connected now" : "Available right now"),
             );
 
             const footer = el("div", "network-tile-footer");
@@ -552,12 +712,14 @@ export class BluetoothControlPanel {
             });
             footer.append(btn, detailsBtn);
 
-            tile.addEventListener("click", () => {
+            tile.addEventListener("mouseenter", (ev) => triggerDropRipple(tile, ev));
+            tile.addEventListener("click", (ev) => {
+                triggerDropRipple(tile, ev);
                 this.device.value = item.id;
                 this.openDetailPopup(item);
                 this.controls.render();
             });
-            tile.append(header, meta, footer);
+            tile.append(spread, header, meta, footer);
             return tile;
         });
         this.tileGrid.replaceChildren(...tiles);
@@ -569,7 +731,12 @@ export class InterfaceControlPanel {
         this.controls = controls;
         this.root = el("div", "network-control-group");
         const panelHeader = el("div", "network-panel-header");
-        panelHeader.append(el("h3", "", "Administrative interface state"));
+        const titleWrap = el("div", "network-panel-title-wrap");
+        this.backBtn = createBackButton(controls);
+        const headerIcon = el("span", "network-panel-header-icon");
+        headerIcon.append(createTechSvg("interfaces"));
+        titleWrap.append(this.backBtn, headerIcon, el("h3", "", "Available Network Interfaces"));
+        panelHeader.append(titleWrap);
         this.interfaceSwitcher = el("div", "network-interface-switcher");
         this.interfacePills = el("div", "network-interface-pills");
         this.interfaceToggleBtn = el("button", "network-tile-btn network-interface-toggle-btn", "Switch Interface");
@@ -580,6 +747,9 @@ export class InterfaceControlPanel {
         this.root.append(panelHeader);
 
         this.root.append(el("p", "network-control-warning", "Warning: bringing an interface down can disconnect this browser and other users. Wi-Fi disconnect is not administrative link down. Recovery is not guaranteed without an OS checkpoint."));
+        this.tilesHeader = el("h4", "network-tiles-heading", "Interfaces Available Right Now");
+        this.tileGrid = el("div", "network-tile-grid network-connection-list");
+        this.root.append(this.tilesHeader, this.tileGrid);
         const selectorRow = el("div", "network-control-selector-row");
         this.interface = controls.select(selectorRow, "Interface to administer");
         this.root.append(selectorRow);
@@ -589,9 +759,6 @@ export class InterfaceControlPanel {
         controls.action(actionsBar, "interface_up", () => ({ interface: this.interface.value }));
         controls.action(actionsBar, "interface_down", () => ({ interface: this.interface.value }));
         this.root.append(actionsBar);
-        this.tilesHeader = el("h4", "network-tiles-heading", "Server Network Interface Tiles");
-        this.tileGrid = el("div", "network-tile-grid network-connection-list");
-        this.root.append(this.tilesHeader, this.tileGrid);
     }
 
     toggleInterface() {
@@ -640,11 +807,17 @@ export class InterfaceControlPanel {
                 tile.classList.toggle("is-selected", selected);
                 tile.classList.toggle("is-connected", Boolean(item.is_up));
             }
+            const spread = el("span", "network-tile-spread");
+            spread.setAttribute("aria-hidden", "true");
             const header = el("div", "network-tile-header");
+            const titleWrap = el("div", "network-tile-title-row");
+            const rowIcon = el("span", "network-row-svg-icon");
+            rowIcon.append(createTechSvg(item.type === "wifi" ? "wifi" : "interfaces"));
             const title = el("strong", "network-tile-title", item.name);
+            titleWrap.append(rowIcon, title);
             const badge = el("span", "network-tile-badge", item.is_up ? "Admin UP" : "Admin DOWN");
             badge.dataset.state = item.is_up ? "connected" : "disconnected";
-            header.append(title, badge);
+            header.append(titleWrap, badge);
 
             const meta = el("div", "network-tile-meta");
             meta.append(el("span", "", `Type: ${text(item.type || "other")}`),
@@ -673,7 +846,7 @@ export class InterfaceControlPanel {
                 this.interface.value = item.name;
                 this.controls.render();
             });
-            tile.append(header, meta, footer);
+            tile.append(spread, header, meta, footer);
             return tile;
         });
         this.tileGrid.replaceChildren(...tiles);
@@ -692,35 +865,48 @@ export class NetworkControls {
         this.buttons = new Map();
         this.stopped = false;
         this.version = 0;
+        this.viewMode = "menu";
         this.root = el("section", "monitoring-section network-controls");
+        this.root.dataset.viewMode = "menu";
         this.root.append(el("h2", "", "Connection & Adapter Controls"),
-            el("p", "monitoring-muted", "Changes affect this server, not your browser device. Link up, Wi-Fi association and internet access are different states. Discovery runs only when you request it."));
+            el("p", "monitoring-muted", "Tap a ControlTile below to open its available connections. Use the Back button inside any opened container to return to the tile menu."));
         this.status = el("p", "network-control-status", "Loading cached control inventory…");
         this.status.setAttribute("role", "status");
         this.feedback = el("p", "network-control-feedback");
         this.feedback.setAttribute("role", "status");
         this.root.append(this.status, this.feedback);
 
-        // Primary Android Quick-Settings Connection Tiles
+        // Primary Android Quick-Settings ControlTile Bar with SVG Logos & Drop-Spread Ripple
         this.quickTileBar = el("div", "network-quick-tiles");
         this.quickTiles = new Map();
         for (const [id, title, defaultSubtitle] of QUICK_SECTIONS) {
-            const tile = el("button", "network-quick-tile");
+            const tile = el("button", "network-quick-tile network-control-tile");
             tile.type = "button";
             tile.dataset.section = id;
             tile.dataset.active = "false";
             tile.dataset.state = "idle";
+            const spread = el("span", "network-tile-spread");
+            spread.setAttribute("aria-hidden", "true");
+            const iconWrap = el("span", "network-quick-tile-icon");
+            const svgNode = createTechSvg(id);
+            iconWrap.append(svgNode);
+            const copyWrap = el("div", "network-control-tile-copy");
             const top = el("div", "network-quick-tile-top");
             const titleNode = el("strong", "network-quick-tile-title", title);
             const badgeNode = el("span", "network-quick-tile-badge", "");
             badgeNode.hidden = true;
             top.append(titleNode, badgeNode);
             const subtitleNode = el("span", "network-quick-tile-subtitle", defaultSubtitle);
-            const chevronNode = el("span", "network-quick-tile-chevron", "▾");
-            tile.append(top, subtitleNode, chevronNode);
-            this.listen(tile, "click", () => this.selectSection(id));
+            copyWrap.append(top, subtitleNode);
+            const chevronNode = el("span", "network-quick-tile-chevron", "›");
+            tile.append(spread, iconWrap, copyWrap, chevronNode);
+            this.listen(tile, "mouseenter", (ev) => triggerDropRipple(tile, ev));
+            this.listen(tile, "click", (ev) => {
+                triggerDropRipple(tile, ev);
+                this.selectSection(id, ev);
+            });
             this.quickTileBar.append(tile);
-            this.quickTiles.set(id, { tile, title: titleNode, subtitle: subtitleNode, badge: badgeNode });
+            this.quickTiles.set(id, { tile, title: titleNode, subtitle: subtitleNode, badge: badgeNode, svg: svgNode });
         }
         this.root.append(this.quickTileBar);
 
@@ -728,6 +914,7 @@ export class NetworkControls {
         this.bluetoothPanel = new BluetoothControlPanel(this);
         this.interfacePanel = new InterfaceControlPanel(this);
         this.detailPopup = this.wifiPanel.detailPopup;
+        this.backBtn = this.wifiPanel.backBtn;
 
         this.wifiInterface = this.wifiPanel.wifiInterface;
         this.network = this.wifiPanel.network;
@@ -738,10 +925,25 @@ export class NetworkControls {
         this.device = this.bluetoothPanel.device;
         this.interface = this.interfacePanel.interface;
 
-        this.operationsWrap = this.group("Recent control operations");
+        this.operationsWrap = el("div", "network-control-group");
+        const opsHeader = el("div", "network-panel-header");
+        const opsTitleWrap = el("div", "network-panel-title-wrap");
+        this.opsBackBtn = createBackButton(this);
+        const opsIcon = el("span", "network-panel-header-icon");
+        opsIcon.append(createTechSvg("operations"));
+        opsTitleWrap.append(this.opsBackBtn, opsIcon, el("h3", "", "Recent Control Operations"));
+        opsHeader.append(opsTitleWrap);
+        this.operationsWrap.append(opsHeader);
         this.operations = el("div", "network-operations");
         this.operations.setAttribute("aria-live", "polite");
         this.operationsWrap.append(this.operations);
+
+        this.sectionGroups = new Map([
+            ["wifi", this.wifiPanel.root],
+            ["bluetooth", this.bluetoothPanel.root],
+            ["interfaces", this.interfacePanel.root],
+            ["operations", this.operationsWrap],
+        ]);
 
         this.tabs = new TabController(this.root, [
             { id: "wifi", label: "Wi-Fi", content: this.wifiPanel.root },
@@ -756,15 +958,36 @@ export class NetworkControls {
             entry.panel.className = "monitoring-tabpanel network-drop-panel";
         }
         this.syncQuickTiles(this.tabs.activeId || "wifi");
+        this.root.dataset.viewMode = "menu";
 
         container.append(this.root);
         this.securityFields();
         this.render();
     }
-    selectSection(id) {
+    selectSection(id, ev = null) {
         if (!this.tabs?.tabs.has(id)) return;
+        this.viewMode = "container";
+        this.root.dataset.viewMode = "container";
         this.tabs.select(id, true);
         this.syncQuickTiles(id);
+        const groupNode = this.sectionGroups?.get(id) || this.tabs.tabs.get(id)?.panel;
+        if (groupNode) {
+            groupNode.dataset.rippleOpen = "false";
+            if (groupNode.classList) {
+                groupNode.classList.remove("is-ripple-opening");
+                void groupNode.offsetWidth;
+                groupNode.classList.add("is-ripple-opening");
+            }
+            groupNode.dataset.rippleOpen = "true";
+            triggerDropRipple(groupNode, ev);
+        }
+    }
+    openMenu() {
+        this.wifiPanel?.closeDetailPopup?.();
+        this.wifiPanel?.closeAuthPrompt?.();
+        this.bluetoothPanel?.closeDetailPopup?.();
+        this.viewMode = "menu";
+        this.root.dataset.viewMode = "menu";
     }
     syncQuickTiles(activeId) {
         this.activeSection = activeId;
@@ -892,7 +1115,9 @@ export class NetworkControls {
                     (capability?.reason || "Not supported on this host.") :
                     targetMissing ? "No eligible target in cached inventory." : (capability.reason || "Ready.");
         }
-        const currentNetworks = list(snapshot?.wifi_networks).filter((item) => item.interface === this.wifiInterface.value);
+        const currentNetworks = list(snapshot?.wifi_networks).filter((item) =>
+            item.interface === this.wifiInterface.value &&
+            !(item.security === "saved" && !item.connected && !(item.signal > 0)));
         this.wifiPanel.renderInterfaceSwitcher(wifiIfaces);
         this.wifiPanel.renderTiles(currentNetworks);
         this.bluetoothPanel.renderTiles(allDevices);
@@ -909,7 +1134,7 @@ export class NetworkControls {
                 ? `Connected · ${connectedWifi.ssid} (${this.wifiInterface.value || connectedWifi.name || "wifi"})`
                 : (wifiIfaces.length ? `${this.wifiInterface.value || wifiIfaces[0].name} · ${currentNetworks.length} available` : "No adapter");
             wifiEntry.tile.dataset.state = connectedWifi ? "connected" : "available";
-            wifiEntry.badge.textContent = wifiIfaces.length ? String(currentNetworks.length || wifiIfaces.length) : "";
+            wifiEntry.badge.textContent = wifiIfaces.length ? `${currentNetworks.length} available` : "";
             wifiEntry.badge.hidden = !wifiEntry.badge.textContent;
         }
         const connectedBt = allDevices.find((d) => d.connected);
@@ -917,10 +1142,10 @@ export class NetworkControls {
         if (btEntry) {
             btEntry.subtitle.textContent = connectedBt
                 ? `Connected · ${connectedBt.name || connectedBt.id}`
-                : `${allDevices.length} device${allDevices.length === 1 ? "" : "s"}`;
+                : `${allDevices.length} available right now`;
             btEntry.tile.dataset.state = connectedBt ? "connected" : "available";
-            btEntry.badge.textContent = allDevices.length ? String(allDevices.length) : "";
-            btEntry.badge.hidden = !btEntry.badge.textContent;
+            btEntry.badge.textContent = `${allDevices.length} available`;
+            btEntry.badge.hidden = false;
         }
         const upIfaces = interfaces.filter((i) => i.is_up === true);
         const ifaceEntry = this.quickTiles.get("interfaces");
@@ -934,11 +1159,13 @@ export class NetworkControls {
         }
     }
     renderNetworks() {
-        const currentNetworks = list(this.snapshot?.wifi_networks).filter((item) => item.interface === this.wifiInterface.value);
+        const currentNetworks = list(this.snapshot?.wifi_networks).filter((item) =>
+            item.interface === this.wifiInterface.value &&
+            !(item.security === "saved" && !item.connected && !(item.signal > 0)));
         this.options(this.network, [
             ...currentNetworks.map((item) => [
                 item.id,
-                `${item.ssid || "(hidden SSID)"} · ${item.security || "unknown security"}${item.signal ? ` · signal ${text(item.signal)}%` : ""}${item.connected ? " · connected" : ""}`,
+                `${item.ssid || "(hidden SSID)"}${item.bssid ? ` (${item.bssid})` : ""} · ${item.security || "unknown security"}${item.signal ? ` · signal ${text(item.signal)}%` : ""}${item.connected ? " · connected" : ""}`,
             ]),
             ["__custom__", "+ Enter custom / hidden SSID…"],
         ]);

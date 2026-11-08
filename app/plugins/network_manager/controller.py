@@ -54,8 +54,9 @@ def _inventory(data):
     result = {"interfaces": [], "wifi_networks": [], "bluetooth_devices": [], "details": {}}
     schemas = {
         "interfaces": {"name": str, "type": str, "is_up": bool, "ssid": str},
-        "wifi_networks": {"id": str, "interface": str, "ssid": str, "security": str,
-                          "signal": (int, float), "connected": bool, "profile_id": str},
+        "wifi_networks": {"id": str, "interface": str, "ssid": str, "bssid": str,
+                          "channel": str, "security": str, "signal": (int, float),
+                          "connected": bool, "profile_id": str},
         "bluetooth_devices": {"id": str, "name": str, "paired": bool, "connected": bool,
                               "transport": str, "adapter": str},
     }

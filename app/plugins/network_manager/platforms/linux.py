@@ -97,15 +97,19 @@ class LinuxNative:
                 for ap in wireless.get("AccessPoints", []):
                     access = await self.props(ap, NM + ".AccessPoint")
                     ssid = bytes(access.get("Ssid", [])).decode("utf-8", "replace")
+                    bssid = str(access.get("HwAddress") or "")
                     # RSN/WPA 802.1X key management is not personal authentication.
                     flags = access.get("RsnFlags", 0) | access.get("WpaFlags", 0)
                     security = "enterprise" if flags & 0x200 else (
                         "wpa-personal" if flags & 0x100 else
                         "unsupported" if access.get("Flags", 0) & 1 else "open")
                     connected = ap == active
-                    result["wifi_networks"].append({"id": ap, "interface": name, "ssid": ssid,
-                                                   "security": security, "signal": access.get("Strength", 0),
-                                                   "connected": connected})
+                    row = {"id": ap, "interface": name, "ssid": ssid,
+                           "security": security, "signal": access.get("Strength", 0),
+                           "connected": connected}
+                    if bssid:
+                        row["bssid"] = bssid
+                    result["wifi_networks"].append(row)
                     if connected:
                         interface["ssid"] = ssid
             details = {"gateways": [], "dns": [], "routes": [], "method": None, "source": "NetworkManager"}
