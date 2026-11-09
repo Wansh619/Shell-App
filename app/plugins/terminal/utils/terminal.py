@@ -84,7 +84,7 @@ class TerminalSession:
                     f"printf '{marker}%s\\037' \"$__shell_app_status\"; "
                     "stty -echo"
                 )
-                argv = [shell, "--noprofile", "--norc", "-i"]
+                argv = [shell, "--noprofile", "--norc", "--noediting", "-i"]
             else:
                 # sh, dash, ksh, busybox ash...: expand the status inside PS1.
                 environment["PS1"] = f"\x1eSHELL_APP_PROMPT:{self.prompt_token}:$?\x1f"

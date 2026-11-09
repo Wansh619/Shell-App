@@ -2,11 +2,16 @@ import json
 
 from quart import Blueprint, websocket
 
-from app.core.socket_manager import SocketManager
 from app.core.logging import logger
-from app.plugins.terminal.manager import TerminalManager
-from app.plugins.terminal.services import TerminalService
-from app.plugins.terminal.terminal import TerminalSession
+from app.core.socket_manager import SocketManager
+from app.plugins.terminal.models.models import (
+    TerminalErrorPayload,
+    TerminalOutputPayload,
+    TerminalReadyPayload,
+)
+from app.plugins.terminal.utils.manager import TerminalManager
+from app.plugins.terminal.utils.services import TerminalService
+from app.plugins.terminal.utils.terminal import TerminalSession
 
 
 def create_sockets(
@@ -22,7 +27,7 @@ def create_sockets(
         task = socket_manager.track_current_task()
 
         async def send_output(session_id: str, value: str) -> None:
-            payload = {"session_id": session_id, "value": value}
+            payload = TerminalOutputPayload(session_id=session_id, value=value).to_dict()
             await websocket.send(json.dumps(payload))
 
         try:
@@ -81,11 +86,10 @@ def create_sockets(
                             logger.info("Terminal session started: %s", session_id)
                             await websocket.send(
                                 json.dumps(
-                                    {
-                                        "session_id": session_id,
-                                        "type": "ready",
-                                        "prompt_token": session.prompt_token,
-                                    }
+                                    TerminalReadyPayload(
+                                        session_id=session_id,
+                                        prompt_token=session.prompt_token,
+                                    ).to_dict()
                                 )
                             )
                         except Exception:
@@ -101,11 +105,10 @@ def create_sockets(
                                 )
                             await websocket.send(
                                 json.dumps(
-                                    {
-                                        "session_id": session_id,
-                                        "type": "error",
-                                        "message": "Unable to start terminal session.",
-                                    }
+                                    TerminalErrorPayload(
+                                        session_id=session_id,
+                                        message="Unable to start terminal session.",
+                                    ).to_dict()
                                 )
                             )
                         continue

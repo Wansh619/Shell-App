@@ -1,12 +1,15 @@
+from dataclasses import dataclass
+
 from quart import Quart
 
-from app.plugins.panels.manager import PanelManager
-from app.plugins.panels.routes import create_routes
-from app.plugins.panels.services import PanelService
+from app.core.plugins import Plugin
+from app.plugins.panels.utils import PanelManager, PanelService, create_routes
 
 
-class PanelsPlugin:
-    name = "panels"
+@dataclass
+class PanelsPlugin(Plugin):
+    name: str = "panels"
+    version: str = "1.0.0"
 
     def register(self, app: Quart) -> None:
         app.register_blueprint(create_routes(PanelManager(), PanelService()))

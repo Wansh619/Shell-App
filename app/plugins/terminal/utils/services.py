@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from app.plugins.terminal.models import SessionResponse
+from app.plugins.terminal.models.models import SessionResponse
 
 
 class TerminalService:
@@ -20,8 +20,8 @@ class TerminalService:
     def delete_record(self, session_id: str) -> None:
         self._delete_record(session_id)
 
-    def list_sessions(self) -> list[SessionResponse]:
+    def list_sessions(self) -> list[dict[str, str]]:
         return [
-            {"session_id": row[0], "created_at": row[1], "status": row[2]}
+            SessionResponse(session_id=row[0], created_at=row[1], status=row[2]).to_dict()
             for row in self._list_records()
         ]

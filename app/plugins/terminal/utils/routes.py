@@ -1,6 +1,6 @@
 from quart import Blueprint, jsonify
 
-from app.plugins.terminal.services import TerminalService
+from app.plugins.terminal.utils.services import TerminalService
 
 
 def create_routes(service: TerminalService) -> Blueprint:

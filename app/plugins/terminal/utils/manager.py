@@ -1,5 +1,5 @@
 from app.core.logging import logger
-from app.plugins.terminal.terminal import TerminalSession
+from app.plugins.terminal.utils.terminal import TerminalSession
 
 
 class TerminalManager:

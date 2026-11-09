@@ -1,7 +1,8 @@
 from pathlib import Path
+from typing import Any
 
 from app.core.logging import LOG_DIR, LOG_FILES
-from app.plugins.panels.models import LogUpdate
+from app.plugins.panels.models.models import LogUpdate
 
 
 MAX_LOG_READ_BYTES = 64 * 1024
@@ -11,7 +12,7 @@ class PanelService:
     def has_log(self, log_type: str) -> bool:
         return log_type in LOG_FILES
 
-    def read_log(self, log_type: str, offset: int, generation: str) -> LogUpdate:
+    def build_log_update(self, log_type: str, offset: int, generation: str) -> LogUpdate:
         filename = LOG_FILES.get(log_type)
         if filename is None:
             raise KeyError(log_type)
@@ -30,9 +31,13 @@ class PanelService:
             content = log_file.read(MAX_LOG_READ_BYTES)
             next_offset = log_file.tell()
 
-        return {
-            "content": content.decode("utf-8", errors="replace"),
-            "offset": next_offset,
-            "generation": current_generation,
-            "reset": reset,
-        }
+        return LogUpdate(
+            content=content.decode("utf-8", errors="replace"),
+            offset=next_offset,
+            generation=current_generation,
+            reset=reset,
+        )
+
+    def read_log(self, log_type: str, offset: int, generation: str) -> dict[str, Any]:
+        log_update = self.build_log_update(log_type, offset, generation)
+        return log_update.to_dict()
