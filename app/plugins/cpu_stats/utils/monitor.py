@@ -1,4 +1,4 @@
-"""CPU statistics plugin, collected independently of browser requests."""
+"""CPU statistics monitoring utilities and collectors."""
 
 import math
 import time
@@ -10,6 +10,16 @@ from app.core.monitoring import (
     MetricsStore,
     MonitoringService,
     positive_number,
+)
+from app.plugins.cpu_stats.models.models import (
+    CompactCPUSample,
+    CoreCount,
+    CPUCapabilities,
+    CPUFrequency,
+    CPUSnapshot,
+    CPUTimesBreakdown,
+    MemoryMetrics,
+    ProcessMetric,
 )
 
 
@@ -42,7 +52,7 @@ class CPUMonitor:
 
     @staticmethod
     def _delta(previous, current):
-        empty = {key: None for key in ("user", "system", "idle", "iowait")}
+        empty = CPUTimesBreakdown().to_dict()
         if previous is None or current is None or previous.keys() != current.keys():
             return None, empty
         deltas = {key: current[key] - previous[key] for key in current}
@@ -54,10 +64,12 @@ class CPUMonitor:
             return None, empty
         idle = deltas.get("idle", 0) + deltas.get("iowait", 0)
         usage = max(0.0, min(100.0, (total - idle) * 100 / total))
-        percentages = {
-            key: (deltas[key] * 100 / total if key in deltas else None)
-            for key in empty
-        }
+        percentages = CPUTimesBreakdown(
+            user=deltas["user"] * 100 / total if "user" in deltas else None,
+            system=deltas["system"] * 100 / total if "system" in deltas else None,
+            idle=deltas["idle"] * 100 / total if "idle" in deltas else None,
+            iowait=deltas["iowait"] * 100 / total if "iowait" in deltas else None,
+        ).to_dict()
         return usage, percentages
 
     def _temperature(self):
@@ -88,57 +100,68 @@ class CPUMonitor:
             for index, core in enumerate(cores)
         ]
         self._previous, self._previous_cores = current, cores
-        frequency = _optional(lambda: self.provider.cpu_freq())
-        frequency = {
-            key: _number(getattr(frequency, key, None))
+        raw_freq = _optional(lambda: self.provider.cpu_freq())
+        freq_values = {
+            key: _number(getattr(raw_freq, key, None))
             for key in ("current", "min", "max")
         }
-        frequency = {
-            key: value if value is not None and value > 0 else None
-            for key, value in frequency.items()
-        }
+        frequency = CPUFrequency(
+            **{
+                key: value if value is not None and value > 0 else None
+                for key, value in freq_values.items()
+            }
+        )
         load = _optional(lambda: self.provider.getloadavg())
         load = [_number(value) for value in load] if load is not None else None
         if load is not None and (len(load) != 3 or any(value is None for value in load)):
             load = None
         temperature = self._temperature()
         vm = _optional(lambda: self.provider.virtual_memory())
-        memory = {
+        mem_values = {
             key: _number(getattr(vm, key, None))
             for key in ("percent", "used", "total", "available")
         }
-        if memory["percent"] is not None:
-            memory["percent"] = max(0.0, min(100.0, memory["percent"]))
-        return {
-            "status": "ok" if current is not None else "degraded",
-            "cpu_percent": usage,
-            "memory": memory,
-            "per_core": per_core,
-            "frequency": frequency,
-            "times": times,
-            "load_average": load,
-            "core_count": {
-                "physical": _optional(lambda: self.provider.cpu_count(logical=False)),
-                "logical": _optional(lambda: self.provider.cpu_count(logical=True)),
-            },
-            "temperature": temperature,
-            "capabilities": {
-                "cpu_times": current is not None,
-                "memory": memory["percent"] is not None,
-                "per_core": bool(cores),
-                "frequency": frequency["current"] is not None,
-                "load_average": load is not None,
-                "temperature": temperature is not None,
-            },
-        }
+        if mem_values["percent"] is not None:
+            mem_values["percent"] = max(0.0, min(100.0, mem_values["percent"]))
+        memory = MemoryMetrics(**mem_values)
+        core_count = CoreCount(
+            physical=_optional(lambda: self.provider.cpu_count(logical=False)),
+            logical=_optional(lambda: self.provider.cpu_count(logical=True)),
+        )
+        capabilities = CPUCapabilities(
+            cpu_times=current is not None,
+            memory=memory.percent is not None,
+            per_core=bool(cores),
+            frequency=frequency.current is not None,
+            load_average=load is not None,
+            temperature=temperature is not None,
+        )
+        snapshot = CPUSnapshot(
+            status="ok" if current is not None else "degraded",
+            cpu_percent=usage,
+            memory=memory,
+            per_core=per_core,
+            frequency=frequency,
+            times=times,
+            load_average=load,
+            core_count=core_count,
+            temperature=temperature,
+            capabilities=capabilities,
+        )
+        return snapshot.to_dict()
 
 
 class MetricsCollector:
     """Collect CPU samples and refresh cached process objects at a slower cadence."""
 
     def __init__(
-        self, cpu_monitor=None, provider=None, process_interval=5.0,
-        monotonic=time.monotonic, clock=time.time, process_limit=10,
+        self,
+        cpu_monitor=None,
+        provider=None,
+        process_interval=5.0,
+        monotonic=time.monotonic,
+        clock=time.time,
+        process_limit=10,
     ):
         self.provider = provider if provider is not None else psutil
         self.cpu_monitor = cpu_monitor if cpu_monitor is not None else CPUMonitor(self.provider)
@@ -176,12 +199,14 @@ class MetricsCollector:
                 cpu = process.cpu_percent(interval=None)
                 name = process.name()
                 memory = _number(process.memory_percent())
-                rows.append({
-                    "pid": pid,
-                    "name": name,
-                    "cpu_percent": None if fresh else _number(cpu),
-                    "memory_percent": memory,
-                })
+                rows.append(
+                    ProcessMetric(
+                        pid=pid,
+                        name=name,
+                        cpu_percent=None if fresh else _number(cpu),
+                        memory_percent=memory,
+                    ).to_dict()
+                )
             except (psutil.Error, OSError, NotImplementedError):
                 self._processes.pop(pid, None)
         self._processes = {
@@ -209,21 +234,26 @@ class SystemMonitor(MonitoringService):
     """Compose CPU collection with the shared lifecycle, store and live fan-out."""
 
     def __init__(self, interval=1.0, process_interval=5.0, collector=None):
-        self.collector = collector if collector is not None else MetricsCollector(
-            process_interval=process_interval
+        self.collector = (
+            collector
+            if collector is not None
+            else MetricsCollector(process_interval=process_interval)
         )
         super().__init__(self.collector.collect, interval=interval, compact=self.compact_cpu)
 
     @staticmethod
     def compact_cpu(snapshot):
-        return {
-            key: snapshot[key]
-            for key in ("timestamp", "cpu_percent", "memory", "frequency", "temperature", "per_core", "times")
-        }
-
+        return CompactCPUSample.from_snapshot(snapshot).to_dict()
 
 
 __all__ = [
-    "SystemMonitor", "CPUMonitor", "MetricsCollector",
-    "MetricsStore", "LiveUpdateService",
+    "SystemMonitor",
+    "CPUMonitor",
+    "MetricsCollector",
+    "MetricsStore",
+    "LiveUpdateService",
+    "MonitoringService",
+    "positive_number",
+    "_number",
+    "_optional",
 ]

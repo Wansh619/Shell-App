@@ -6,16 +6,18 @@ from pathlib import Path
 
 from quart import Quart
 
-from app.core.interfaces import Plugin
 from app.core.logging import LOG_DIR, logger
+from app.core.plugins import Plugin, PluginManager, initialize_plugins
 from app.core.routes import core_routes
 from app.extensions import init_extensions
-from app.plugins.cpu_stats.plugin import CPUStatsPlugin
-from app.plugins.network_manager.plugin import NetworkManagerPlugin
-from app.plugins.panels.plugin import PanelsPlugin
-from app.plugins.terminal.plugin import TerminalPlugin
-from app.plugins.terminal.services import TerminalService
-from app.plugins.terminal.storage import (
+from app.plugins import (
+    CPUStatsPlugin,
+    NetworkManagerPlugin,
+    PanelsPlugin,
+    TerminalPlugin,
+)
+from app.plugins.terminal.utils import (
+    TerminalService,
     clear_sessions,
     create_session,
     delete_session,
@@ -31,22 +33,19 @@ def create_app(plugins: Iterable[Plugin] = ()) -> Quart:
 
     terminal_manager = application.extensions["terminal_manager"]
     socket_manager = application.extensions["socket_manager"]
-    plugin_manager = application.extensions["plugin_manager"]
     terminal_service = TerminalService(
         create_record=lambda session_id: create_session(session_id),
         delete_record=lambda session_id: delete_session(session_id),
         list_records=lambda: list_sessions(),
     )
-    plugin_manager.register(
-        TerminalPlugin(terminal_manager, socket_manager, terminal_service)
+    builtin_plugins: tuple[Plugin, ...] = (
+        TerminalPlugin(terminal_manager, socket_manager, terminal_service),
+        PanelsPlugin(),
+        CPUStatsPlugin(),
+        NetworkManagerPlugin(),
     )
-    plugin_manager.register(PanelsPlugin())
-    plugin_manager.register(CPUStatsPlugin())
-    plugin_manager.register(NetworkManagerPlugin())
-    for plugin in plugins:
-        plugin_manager.register(plugin)
     application.register_blueprint(core_routes)
-    plugin_manager.initialize(application)
+    initialize_plugins(application, plugins=plugins, builtin_plugins=builtin_plugins)
 
     @application.before_serving
     async def startup() -> None:
@@ -96,6 +95,8 @@ async def run_server(host=None, port=None, application: Quart | None = None) -> 
 
 
 __all__ = [
+    "Plugin",
+    "PluginManager",
     "active_terminal_tasks",
     "app",
     "clear_sessions",
@@ -103,6 +104,7 @@ __all__ = [
     "create_session",
     "delete_session",
     "init_db",
+    "initialize_plugins",
     "list_sessions",
     "run_server",
     "sessions",

@@ -1,8 +1,9 @@
 from quart import Blueprint, jsonify, request
 
 from app.core.logging import logger
-from app.plugins.panels.manager import PanelManager
-from app.plugins.panels.services import PanelService
+from app.plugins.panels.models.models import LogUpdate
+from app.plugins.panels.utils.manager import PanelManager
+from app.plugins.panels.utils.services import PanelService
 
 
 def create_routes(panel_manager: PanelManager, service: PanelService) -> Blueprint:
@@ -30,7 +31,9 @@ def create_routes(panel_manager: PanelManager, service: PanelService) -> Bluepri
 
         generation = request.args.get("generation", "")
         try:
-            return jsonify(service.read_log(log_type, offset, generation)), 200
+            update = service.read_log(log_type, offset, generation)
+            payload = update.to_dict() if isinstance(update, LogUpdate) else update
+            return jsonify(payload), 200
         except KeyError:
             return jsonify({"error": "Unknown log file."}), 404
         except OSError:

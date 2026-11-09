@@ -5,8 +5,14 @@ import time
 from copy import deepcopy
 
 from app.core.monitoring import MonitoringService, positive_number
-from app.plugins.network_manager.inspection import normalize_address
-from app.plugins.network_manager.providers import LinuxMetadataProvider, PsutilProvider
+from app.plugins.network_manager.models.models import (
+    CompactNetworkSample,
+    ConnectionSummary,
+    InterfaceSnapshot,
+    TrafficTotals,
+)
+from app.plugins.network_manager.utils.inspection import normalize_address
+from app.plugins.network_manager.utils.providers import LinuxMetadataProvider, PsutilProvider
 
 
 class InterfaceManager:
@@ -32,21 +38,21 @@ class InterfaceManager:
         state = metadata.get("state", "unknown" if is_up else "disconnected")
         if not is_up and state not in ("connecting", "unavailable"):
             state = "disconnected"
-        self.snapshot = {
-            "name": self.name,
-            "type": metadata.get("type", discovery.get("type", "other")),
-            "state": state,
-            "is_up": is_up,
-            "addresses": [normalize_address(item) for item in discovery.get("addresses", [])],
-            "mac": discovery.get("mac"),
-            "speed_mbps": discovery.get("speed_mbps"),
-            "mtu": discovery.get("mtu"),
-            "bytes_recv": counters["bytes_recv"] if counters else self.snapshot.get("bytes_recv", 0),
-            "bytes_sent": counters["bytes_sent"] if counters else self.snapshot.get("bytes_sent", 0),
-            "recv_rate": recv_rate,
-            "sent_rate": sent_rate,
-            "metadata": metadata.get("metadata", {}),
-        }
+        self.snapshot = InterfaceSnapshot(
+            name=self.name,
+            type=metadata.get("type", discovery.get("type", "other")),
+            state=state,
+            is_up=is_up,
+            addresses=[normalize_address(item) for item in discovery.get("addresses", [])],
+            mac=discovery.get("mac"),
+            speed_mbps=discovery.get("speed_mbps"),
+            mtu=discovery.get("mtu"),
+            bytes_recv=counters["bytes_recv"] if counters else self.snapshot.get("bytes_recv", 0),
+            bytes_sent=counters["bytes_sent"] if counters else self.snapshot.get("bytes_sent", 0),
+            recv_rate=recv_rate,
+            sent_rate=sent_rate,
+            metadata=metadata.get("metadata", {}),
+        ).to_dict()
         return self.snapshot
 
 
@@ -62,7 +68,7 @@ class ConnectionManager:
             (value for value in ("connected", "connecting", "unknown", "disconnected", "unavailable") if value in states),
             "unavailable",
         )
-        return {"state": state, "interfaces": sorted(self.interfaces)}
+        return ConnectionSummary(state=state, interfaces=sorted(self.interfaces)).to_dict()
 
 
 class WiFiManager(ConnectionManager):
@@ -82,14 +88,7 @@ class HotspotManager(ConnectionManager):
 
 
 def compact_snapshot(snapshot):
-    return {
-        "timestamp": snapshot["timestamp"],
-        "totals": snapshot["totals"].copy(),
-        "interfaces": [
-            {key: interface[key] for key in ("name", "recv_rate", "sent_rate")}
-            for interface in snapshot["interfaces"]
-        ],
-    }
+    return CompactNetworkSample.from_snapshot(snapshot).to_dict()
 
 
 class NetworkManager:
@@ -189,10 +188,11 @@ class NetworkManager:
         }
         degraded = not (self._discovery_available and counters_available and self._metadata_available)
         degraded = degraded or any(value.get("error") for value in capabilities.values())
-        totals = {}
+        totals_raw = {}
         for key in ("recv_rate", "sent_rate"):
             values = [item[key] for item in interfaces]
-            totals[key] = sum(values) if values and all(value is not None for value in values) else None
+            totals_raw[key] = sum(values) if values and all(value is not None for value in values) else None
+        totals = TrafficTotals(**totals_raw).to_dict()
         snapshot = {
             "timestamp": self.wall_time(),
             "status": "degraded" if degraded else "ok",
@@ -200,7 +200,6 @@ class NetworkManager:
             "connections": {key: manager.summary() for key, manager in self.connections.items()},
             "totals": totals,
             "capabilities": capabilities,
-
         }
         if control is not None:
             snapshot["control"] = control

@@ -1,31 +1,71 @@
+from dataclasses import dataclass
+
 from quart import Quart
 
-from app.plugins.terminal.manager import TerminalManager
-from app.plugins.terminal.routes import create_routes
-from app.plugins.terminal.services import TerminalService
-from app.plugins.terminal.sockets import create_sockets
+from app.core.plugins import Plugin
 from app.core.socket_manager import SocketManager
+from app.plugins.terminal.utils import (
+    TerminalManager,
+    TerminalService,
+    create_routes,
+    create_session,
+    create_sockets,
+    delete_session,
+    list_sessions,
+)
 
 
-class TerminalPlugin:
-    name = "terminal"
+@dataclass(init=False)
+class TerminalPlugin(Plugin):
+    name: str = "terminal"
+    version: str = "1.0.0"
+    terminal_manager: TerminalManager | None = None
+    socket_manager: SocketManager | None = None
+    service: TerminalService | None = None
 
     def __init__(
         self,
-        terminal_manager: TerminalManager,
-        socket_manager: SocketManager,
-        service: TerminalService,
+        terminal_manager: TerminalManager | str | None = None,
+        socket_manager: SocketManager | str | None = None,
+        service: TerminalService | None = None,
+        *,
+        name: str = "terminal",
+        version: str = "1.0.0",
     ) -> None:
-        self._terminal_manager = terminal_manager
-        self._socket_manager = socket_manager
-        self._service = service
+        if isinstance(terminal_manager, str):
+            name = terminal_manager
+            terminal_manager = None
+        if isinstance(socket_manager, str):
+            version = socket_manager
+            socket_manager = None
+        super().__init__(name=name, version=version)
+        self.terminal_manager = terminal_manager
+        self.socket_manager = socket_manager
+        self.service = service
 
-    def register(self, app: Quart) -> None:
-        app.register_blueprint(create_routes(self._service))
+    def register(self, app: Quart | None = None) -> None:
+        if app is None:
+            return
+        terminal_manager = (
+            self.terminal_manager
+            or app.extensions.get("terminal_manager")
+            or TerminalManager()
+        )
+        socket_manager = (
+            self.socket_manager
+            or app.extensions.get("socket_manager")
+            or SocketManager()
+        )
+        service = self.service or TerminalService(
+            create_record=lambda session_id: create_session(session_id),
+            delete_record=lambda session_id: delete_session(session_id),
+            list_records=lambda: list_sessions(),
+        )
+        app.register_blueprint(create_routes(service))
         app.register_blueprint(
             create_sockets(
-                self._terminal_manager,
-                self._socket_manager,
-                self._service,
+                terminal_manager,
+                socket_manager,
+                service,
             )
         )

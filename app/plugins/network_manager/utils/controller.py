@@ -8,7 +8,8 @@ from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 
-from app.plugins.network_manager.platforms.base import ACTIONS, NetworkOperationError
+from app.plugins.network_manager.models.models import CheckpointRecord, OperationRecord
+from app.plugins.network_manager.utils.platforms.base import ACTIONS, NetworkOperationError
 
 
 class NetworkControlError(NetworkOperationError):
@@ -35,6 +36,7 @@ def _text(value, limit=256):
 
 def _number(value):
     return value if type(value) in (int, float) and math.isfinite(value) else None
+
 
 def _redact(value, secret):
     if not secret:
@@ -409,8 +411,15 @@ class NetworkController:
             self._cooldowns[key] = now_mono
         ident = uuid.uuid4().hex
         now = time.time()
-        record = {"id": ident, "action": action, "target": target, "status": "pending",
-                  "created_at": now, "updated_at": now, "message": "Queued."}
+        record = OperationRecord(
+            id=ident,
+            action=action,
+            target=target,
+            status="pending",
+            created_at=now,
+            updated_at=now,
+            message="Queued.",
+        ).to_dict()
         self._operations[ident] = record
         if action in _CHECKPOINT_ACTIONS:
             self._checkpoint_busy.add(payload["operation_id"])
@@ -436,6 +445,7 @@ class NetworkController:
                 if ident not in self._mutating and self._busy.get(record["target"]) == ident:
                     del self._busy[record["target"]]
                 self._update(ident, "expired", "Checkpoint expired; native rollback is not verified.")
+
     async def _checkpoint_expiry(self, ident, expires_at):
         await asyncio.sleep(max(0, expires_at - time.time()))
         self._expire_checkpoints()
@@ -477,8 +487,10 @@ class NetworkController:
                         if isinstance(expires, str):
                             expires = datetime.fromisoformat(expires.replace("Z", "+00:00")).timestamp()
                         if _number(expires) is not None and time.time() < expires <= time.time() + 120:
-                            self._checkpoints[ident] = {"id": checkpoint["id"],
-                                                        "expires_at": expires}
+                            self._checkpoints[ident] = CheckpointRecord(
+                                id=checkpoint["id"],
+                                expires_at=expires,
+                            ).to_dict()
                             record["checkpoint"] = deepcopy(self._checkpoints[ident])
                             timer = asyncio.create_task(self._checkpoint_expiry(ident, expires))
                             self._expiry_tasks.add(timer)

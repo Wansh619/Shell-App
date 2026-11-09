@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from quart import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import BadRequest, RequestEntityTooLarge
 
-from app.plugins.network_manager.controller import NetworkControlError
+from app.plugins.network_manager.utils.controller import NetworkControlError
 
 
 def _origin_parts(value):

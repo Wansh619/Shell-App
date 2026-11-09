@@ -26,6 +26,8 @@ def to_builtin(value):
     if isinstance(value, (list, tuple, set)) or hasattr(value, "__iter__"):
         return [to_builtin(item) for item in value]
     return str(value)
+
+
 def empty_inventory():
     return {"interfaces": [], "wifi_networks": [], "bluetooth_devices": [], "details": {}}
 
@@ -46,6 +48,7 @@ async def invoke(method, *args, timeout=20):
             return await method(*args)
         result = await asyncio.to_thread(method, *args)
         return await result if inspect.isawaitable(result) else result
+
     async def drain(task):
         while not task.done():
             try:

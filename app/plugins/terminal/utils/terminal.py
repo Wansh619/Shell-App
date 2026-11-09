@@ -80,9 +80,9 @@ class TerminalSession:
             elif shell_name == "bash":
                 environment["PROMPT_COMMAND"] = (
                     "__shell_app_status=$?; "
+                    "stty -echo; "
                     "trap 'stty echo' DEBUG; "
-                    f"printf '{marker}%s\\037' \"$__shell_app_status\"; "
-                    "stty -echo"
+                    f"printf '{marker}%s\\037' \"$__shell_app_status\""
                 )
                 argv = [shell, "--noprofile", "--norc", "-i"]
             else:

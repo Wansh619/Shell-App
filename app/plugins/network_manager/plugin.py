@@ -1,14 +1,21 @@
+from dataclasses import dataclass
 import os
 
 from app.core.monitoring import positive_number, register_monitoring
-from app.plugins.network_manager.control_routes import create_control_routes
-from app.plugins.network_manager.controller import NetworkController
-from app.plugins.network_manager.manager import NetworkManager, NetworkMonitor
-from app.plugins.network_manager.platforms import create_platform_adapter
+from app.core.plugins import Plugin
+from app.plugins.network_manager.utils import (
+    NetworkController,
+    NetworkManager,
+    NetworkMonitor,
+    create_control_routes,
+    create_platform_adapter,
+)
 
 
-class NetworkManagerPlugin:
-    name = "network_manager"
+@dataclass
+class NetworkManagerPlugin(Plugin):
+    name: str = "network_manager"
+    version: str = "1.0.0"
 
     def register(self, app):
         def setting(name, default):

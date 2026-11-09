@@ -1,14 +1,17 @@
 """Application registration for the CPU statistics plugin."""
 
+from dataclasses import dataclass
 import os
 
-from app.core.monitoring import positive_number, register_monitoring
+from app.core.monitoring import register_monitoring
+from app.core.plugins import Plugin
+from app.plugins.cpu_stats.utils import SystemMonitor, positive_number
 
-from .monitor import SystemMonitor
 
-
-class CPUStatsPlugin:
-    name = "cpu_stats"
+@dataclass
+class CPUStatsPlugin(Plugin):
+    name: str = "cpu_stats"
+    version: str = "1.0.0"
 
     def register(self, app):
         service = SystemMonitor(
