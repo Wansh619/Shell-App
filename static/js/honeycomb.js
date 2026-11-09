@@ -79,10 +79,25 @@ class HomeyComb {
         this._onResize = null;
         this._grid = { rows: 0, cols: 0, cells: [] };
         this._hexMetrics = { w: 0, h: 0, stepY: 0 };
+        this._openingTimers = [];
+        this._hasPlayedOpening = false;
+    }
+
+    _clearOpeningTimers() {
+        while (this._openingTimers.length) {
+            clearTimeout(this._openingTimers.pop());
+        }
+    }
+
+    _prefersReducedMotion() {
+        return Boolean(
+            window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+        );
     }
 
     render(container) {
         initializeTheme();
+        this._clearOpeningTimers();
         container.innerHTML = "";
         container.style.position = "relative";
 
@@ -92,16 +107,20 @@ class HomeyComb {
         container.appendChild(this.bg);
         container.appendChild(this.hoverShadow);
 
-        this._renderBackground(container);
-        this._assignCenterAndRing();
+        const animateOpening = !this._hasPlayedOpening && !this._prefersReducedMotion();
+        this._hasPlayedOpening = true;
+
+        const waveDurationMs = this._renderBackground(container, { animateOpening });
+        this._scheduleMenuSpawn(animateOpening ? waveDurationMs : 0, animateOpening);
         this._bindGlow(container);
 
         if (this._onResize) {
             window.removeEventListener("resize", this._onResize);
         }
         this._onResize = () => {
-            this._renderBackground(container);
-            this._assignCenterAndRing();
+            this._clearOpeningTimers();
+            this._renderBackground(container, { animateOpening: false });
+            this._assignCenterAndRing({ animateSpawn: false });
         };
         window.addEventListener("resize", this._onResize);
         document.addEventListener("keydown", (event) => {
@@ -111,7 +130,57 @@ class HomeyComb {
         });
     }
 
-    _renderBackground(container) {
+    _bfsOrderFromTopLeft(rows, cols) {
+        if (rows <= 0 || cols <= 0) return [];
+
+        const startR = 0;
+        const startC = 0;
+        const order = [];
+        const visited = new Set([`${startR},${startC}`]);
+        const queue = [[startR, startC, 0]];
+
+        while (queue.length > 0) {
+            const [r, c, depth] = queue.shift();
+            order.push({ r, c, depth, index: order.length });
+
+            const neighbors = this._neighbors(r, c).sort(
+                ([ar, ac], [br, bc]) => (ar + ac) - (br + bc) || ar - br || ac - bc
+            );
+            for (const [nr, nc] of neighbors) {
+                const key = `${nr},${nc}`;
+                if (visited.has(key)) continue;
+                visited.add(key);
+                queue.push([nr, nc, depth + 1]);
+            }
+        }
+
+        // Fallback for any disconnected coordinates
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const key = `${r},${c}`;
+                if (!visited.has(key)) {
+                    visited.add(key);
+                    order.push({ r, c, depth: r + c, index: order.length });
+                }
+            }
+        }
+
+        return order;
+    }
+
+    _scheduleMenuSpawn(delayMs, animateSpawn) {
+        if (!animateSpawn || delayMs <= 0) {
+            this._assignCenterAndRing({ animateSpawn: false });
+            return;
+        }
+
+        const timerId = window.setTimeout(() => {
+            this._assignCenterAndRing({ animateSpawn: true });
+        }, delayMs);
+        this._openingTimers.push(timerId);
+    }
+
+    _renderBackground(container, { animateOpening = false } = {}) {
         const rect = container.getBoundingClientRect();
         const w = rect.width || window.innerWidth;
         const h = rect.height || window.innerHeight;
@@ -138,6 +207,7 @@ class HomeyComb {
                 const cellBtn = document.createElement("button");
                 cellBtn.className = "hex-cell";
                 cellBtn.type = "button";
+                cellBtn.dataset.role = "bg";
                 cellBtn.style.width = `${hexW}px`;
                 cellBtn.style.height = `${hexH}px`;
                 cellBtn.style.transform = `translate(${x + offsetX}px, ${y}px)`;
@@ -155,6 +225,43 @@ class HomeyComb {
         this.bg.appendChild(frag);
         this._grid = { rows, cols, cells };
 
+        let totalWaveDurationMs = 0;
+        if (animateOpening) {
+            const bfsOrder = this._bfsOrderFromTopLeft(rows, cols);
+            const totalCells = bfsOrder.length || 1;
+            const stepDelayMs = Math.min(22, Math.max(10, 2600 / totalCells));
+            const cellAnimDurationMs = 920;
+
+            for (const { r, c, index, depth } of bfsOrder) {
+                const cell = cells[r][c];
+                const delayMs = Math.round(index * stepDelayMs);
+                cell.dataset.bfsIndex = String(index);
+                cell.dataset.bfsDepth = String(depth);
+                cell.style.setProperty("--hex-bfs-delay", `${delayMs}ms`);
+                cell.style.setProperty("--hex-bfs-duration", `${cellAnimDurationMs}ms`);
+                cell.classList.add("hex-bfs-opening");
+            }
+
+            totalWaveDurationMs = Math.round(
+                (totalCells - 1) * stepDelayMs + cellAnimDurationMs * 0.75
+            );
+            const cleanupTimer = window.setTimeout(() => {
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        cells[r][c].classList.remove("hex-bfs-opening");
+                        cells[r][c].classList.add("hex-bfs-settled");
+                    }
+                }
+            }, totalWaveDurationMs + 300);
+            this._openingTimers.push(cleanupTimer);
+        } else {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    cells[r][c].classList.add("hex-bfs-settled");
+                }
+            }
+        }
+
         this.bg.onclick = (event) => {
             const cell = event.target.closest(".hex-cell");
             if (!cell) return;
@@ -171,6 +278,8 @@ class HomeyComb {
                 if (item) this._openMenu(cell, item);
             }
         };
+
+        return totalWaveDurationMs;
     }
 
     _neighbors(r, c) {
@@ -237,12 +346,14 @@ class HomeyComb {
     _clearCellRole(cell) {
         cell.dataset.role = "bg";
         cell.dataset.menuIndex = "";
-        cell.classList.remove("hex-theme-toggle");
+        cell.classList.remove("hex-theme-toggle", "hex-menu-spawn", "hex-menu-active");
+        cell.style.removeProperty("--menu-spawn-delay");
         cell.querySelector(".hex-surface").innerHTML = "";
     }
 
-    async _assignCenterAndRing() {
+    async _assignCenterAndRing({ animateSpawn = false } = {}) {
         const { rows, cols, cells } = this._grid;
+        if (!rows || !cols || !cells.length) return;
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -268,18 +379,44 @@ class HomeyComb {
             name: "Toggle color theme",
             icon: "theme-core.svg",
         });
+        if (animateSpawn) {
+            this._triggerMenuSpawn(centerCell, 0);
+        } else {
+            centerCell.classList.add("hex-menu-active");
+        }
 
+        const menuStepDelayMs = 180;
         for (let i = 0; i < menuCoords.length; i++) {
             const [rr, cc] = menuCoords[i];
             const m = this._menuMapping[i];
+            const menuCell = cells[rr][cc];
 
-            await this._setCellContent(cells[rr][cc], {
+            await this._setCellContent(menuCell, {
                 role: "menu",
                 name: m.name,
                 icon: m.icon,
                 menuIndex: i,
             });
+
+            if (animateSpawn) {
+                const spawnDelay = (i + 1) * menuStepDelayMs;
+                this._triggerMenuSpawn(menuCell, spawnDelay);
+            } else {
+                menuCell.classList.add("hex-menu-active");
+            }
         }
+    }
+
+    _triggerMenuSpawn(cell, delayMs) {
+        const spawnDurationMs = 720;
+        cell.style.setProperty("--menu-spawn-delay", `${delayMs}ms`);
+        cell.classList.add("hex-menu-spawn");
+        const timerId = window.setTimeout(() => {
+            cell.classList.remove("hex-menu-spawn");
+            cell.classList.add("hex-menu-active");
+            cell.style.removeProperty("--menu-spawn-delay");
+        }, delayMs + spawnDurationMs + 60);
+        this._openingTimers.push(timerId);
     }
 
     _menuCoordinates(centerR, centerC, count) {

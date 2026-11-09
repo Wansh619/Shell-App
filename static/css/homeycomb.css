@@ -39,11 +39,40 @@
     0% 75%,
     0% 25%
   );
-  transition: background 0.35s ease, border-color 0.35s ease;
+  transition:
+    background 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
   color: var(--normal-text);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* BFS top-left to bottom-right opening wave with single smooth color transition */
+.hex-cell.hex-bfs-opening .hex-surface {
+  opacity: 0;
+  animation: hex-bfs-appear var(--hex-bfs-duration, 920ms)
+    cubic-bezier(0.16, 1, 0.3, 1) var(--hex-bfs-delay, 0ms) forwards;
+  will-change: transform, opacity, background, border-color;
+}
+
+/* Smooth staggered menu & theme tile spawning */
+.hex-cell[data-role="menu"].hex-menu-spawn .hex-surface {
+  animation: hex-menu-surface-spawn 720ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--menu-spawn-delay, 0ms) backwards;
+}
+
+.hex-cell.hex-theme-toggle.hex-menu-spawn .hex-surface {
+  animation: hex-theme-surface-spawn 720ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--menu-spawn-delay, 0ms) backwards;
+}
+
+.hex-cell.hex-menu-spawn .hex-content {
+  opacity: 0;
+  animation: hex-menu-content-spawn 680ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--menu-spawn-delay, 0ms) forwards;
 }
 
 /* Glow */
@@ -78,18 +107,21 @@
   border-radius: 8px;
 }
 
-/* Hover background */
+/* Hover background (opposite palette) */
 .hex-cell[data-role="menu"]:hover .hex-surface,
 .hex-cell[data-role="theme"]:hover .hex-surface {
   background: var(--opposite-theme-shade-1);
   border-color: color-mix(in srgb, var(--normal-text) 45%, transparent);
-
   color: var(--theme-shade-1);
-  .hex-icon-svg * {
-    fill: var(--theme-shade-1);
-    stroke: var(--theme-shade-1);
-  }
-  
+}
+
+.hex-cell[data-role="menu"]:hover .hex-label {
+  color: var(--theme-shade-1);
+}
+
+.hex-cell[data-role="menu"]:hover .hex-icon-svg * {
+  fill: var(--theme-shade-1);
+  stroke: var(--theme-shade-1);
 }
 
 /* Content */
@@ -333,10 +365,15 @@
 @media (prefers-reduced-motion: reduce) {
   .hex-close,
   .hex-minimize,
+  .hex-cell.hex-bfs-opening .hex-surface,
+  .hex-cell.hex-menu-spawn .hex-surface,
+  .hex-cell.hex-menu-spawn .hex-content,
   .hex-theme-toggle .theme-icon * {
     transition-duration: 0.01ms;
     animation-duration: 0.01ms;
+    animation-delay: 0ms;
     animation-iteration-count: 1;
+    opacity: 1;
   }
 }
 
