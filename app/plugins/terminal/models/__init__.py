@@ -1,5 +1,13 @@
-from .models import (
+from app.plugins.console.models import (
+    ConsoleErrorPayload,
+    ConsoleMessage,
+    ConsoleOutputPayload,
+    ConsoleReadyPayload,
+    EditorViewModel,
+    ImageViewModel,
     SessionResponse,
+    SkillPayload,
+    SkillResultPayload,
     TerminalErrorPayload,
     TerminalMessage,
     TerminalOutputPayload,
@@ -7,9 +15,17 @@ from .models import (
 )
 
 __all__ = [
+    "ConsoleMessage",
     "TerminalMessage",
     "SessionResponse",
+    "ConsoleOutputPayload",
     "TerminalOutputPayload",
+    "ConsoleReadyPayload",
     "TerminalReadyPayload",
+    "ConsoleErrorPayload",
     "TerminalErrorPayload",
+    "SkillPayload",
+    "SkillResultPayload",
+    "EditorViewModel",
+    "ImageViewModel",
 ]

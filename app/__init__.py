@@ -12,12 +12,13 @@ from app.core.routes import core_routes
 from app.extensions import init_extensions
 from app.plugins import (
     CPUStatsPlugin,
+    ConsolePlugin,
     NetworkManagerPlugin,
     PanelsPlugin,
     TerminalPlugin,
 )
-from app.plugins.terminal.utils import (
-    TerminalService,
+from app.plugins.console.utils import (
+    ConsoleService,
     clear_sessions,
     create_session,
     delete_session,
@@ -31,15 +32,15 @@ def create_app(plugins: Iterable[Plugin] = ()) -> Quart:
     application = Quart(__name__, root_path=str(project_root))
     init_extensions(application)
 
-    terminal_manager = application.extensions["terminal_manager"]
+    console_manager = application.extensions["console_manager"]
     socket_manager = application.extensions["socket_manager"]
-    terminal_service = TerminalService(
+    console_service = ConsoleService(
         create_record=lambda session_id: create_session(session_id),
         delete_record=lambda session_id: delete_session(session_id),
         list_records=lambda: list_sessions(),
     )
     builtin_plugins: tuple[Plugin, ...] = (
-        TerminalPlugin(terminal_manager, socket_manager, terminal_service),
+        ConsolePlugin(console_manager, socket_manager, console_service),
         PanelsPlugin(),
         CPUStatsPlugin(),
         NetworkManagerPlugin(),
@@ -55,14 +56,14 @@ def create_app(plugins: Iterable[Plugin] = ()) -> Quart:
 
     @application.after_serving
     async def shutdown() -> None:
-        await terminal_manager.close_all()
+        await console_manager.close_all()
         clear_sessions()
 
     return application
 
 
 app = create_app()
-sessions = app.extensions["terminal_manager"].sessions
+sessions = app.extensions["console_manager"].sessions
 active_terminal_tasks = app.extensions["socket_manager"].active_tasks
 
 

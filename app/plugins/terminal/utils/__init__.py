@@ -1,24 +1,28 @@
-from app.plugins.terminal.utils.manager import TerminalManager
-from app.plugins.terminal.utils.routes import create_routes
-from app.plugins.terminal.utils.services import TerminalService
-from app.plugins.terminal.utils.sockets import create_sockets
-from app.plugins.terminal.utils.storage import (
+from app.plugins.console.utils import (
     DB_PATH,
+    SUPPORTED_FALLBACK_SHELL,
+    ConsoleManager,
+    ConsoleService,
+    ConsoleSession,
+    TerminalManager,
+    TerminalService,
+    TerminalSession,
     clear_sessions,
+    create_routes,
     create_session,
+    create_sockets,
     delete_session,
     init_db,
     list_sessions,
-)
-from app.plugins.terminal.utils.terminal import (
-    SUPPORTED_FALLBACK_SHELL,
-    TerminalSession,
     resolve_shell,
 )
 
 __all__ = [
+    "ConsoleManager",
     "TerminalManager",
+    "ConsoleService",
     "TerminalService",
+    "ConsoleSession",
     "TerminalSession",
     "resolve_shell",
     "SUPPORTED_FALLBACK_SHELL",
