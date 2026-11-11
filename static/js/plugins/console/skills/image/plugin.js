@@ -301,13 +301,8 @@ export function renderImagePanel(container, model = {}, context = {}) {
             img.style.objectFit = "contain";
             img.style.maxWidth = "100%";
             img.style.maxHeight = "100%";
-            if (isSvg) {
-                img.style.width = hasDimensions ? `${Math.max(width, 280)}px` : "320px";
-                img.style.height = hasDimensions ? `${Math.max(height, 280)}px` : "320px";
-            } else {
-                img.style.width = "";
-                img.style.height = "";
-            }
+            img.style.width = isSvg ? (hasDimensions ? `${Math.min(width, 360)}px` : "320px") : "";
+            img.style.height = isSvg ? (hasDimensions ? `${Math.min(height, 360)}px` : "320px") : "";
         } else {
             img.style.objectFit = "none";
             img.style.maxWidth = "none";
@@ -360,23 +355,28 @@ export function renderImagePanel(container, model = {}, context = {}) {
             zoom = 1.0;
         }
         applyZoomAndFit();
+        startBfsReveal();
     };
 
     const onZoomOutClick = () => {
         fitMode = "actual";
         zoom = Math.max(MIN_ZOOM, zoom - ZOOM_STEP);
         applyZoomAndFit();
+        startBfsReveal();
     };
 
     const onZoomResetClick = () => {
+        fitMode = "contain";
         zoom = 1.0;
         applyZoomAndFit();
+        startBfsReveal();
     };
 
     const onZoomInClick = () => {
         fitMode = "actual";
         zoom = Math.min(MAX_ZOOM, zoom + ZOOM_STEP);
         applyZoomAndFit();
+        startBfsReveal();
     };
 
     const onBackClick = () => {

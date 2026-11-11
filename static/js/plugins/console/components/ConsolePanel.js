@@ -1,4 +1,70 @@
-import ConsoleManager from "./ConsoleManager.js?v=console-skills-6";
+import ConsoleManager from "./ConsoleManager.js?v=console-skills-9";
+
+function buildGeometricAmbientSvg() {
+    const spokes = [];
+    for (let i = 0; i < 24; i += 1) {
+        const angle = (i * 15 * Math.PI) / 180;
+        const x1 = (800 + Math.cos(angle) * 90).toFixed(1);
+        const y1 = (500 + Math.sin(angle) * 90).toFixed(1);
+        const x2 = (800 + Math.cos(angle) * 680).toFixed(1);
+        const y2 = (500 + Math.sin(angle) * 680).toFixed(1);
+        spokes.push(
+            `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="currentColor" stroke-width="0.55" stroke-dasharray="3 9" />`
+        );
+    }
+
+    const rosettePetals = [];
+    for (let i = 0; i < 12; i += 1) {
+        const deg = i * 30;
+        rosettePetals.push(
+            `<ellipse cx="800" cy="500" rx="460" ry="170" transform="rotate(${deg} 800 500)" stroke="currentColor" stroke-width="0.75" stroke-dasharray="18 10 4 10" />`
+        );
+    }
+
+    const innerHarmonics = [];
+    for (let i = 0; i < 18; i += 1) {
+        const deg = i * 20;
+        innerHarmonics.push(
+            `<rect x="520" y="220" width="560" height="560" rx="28" transform="rotate(${deg} 800 500)" stroke="currentColor" stroke-width="0.6" stroke-dasharray="12 16" />`
+        );
+    }
+
+    const periodicWaves = [];
+    for (let k = 0; k < 9; k += 1) {
+        const yBase = 100 + k * 100;
+        const d1 = `M -100 ${yBase} Q 350 ${yBase - 110}, 800 ${yBase} T 1700 ${yBase}`;
+        const d2 = `M -100 ${yBase} Q 350 ${yBase + 110}, 800 ${yBase} T 1700 ${yBase}`;
+        periodicWaves.push(
+            `<path class="geo-wave geo-wave--a" d="${d1}" stroke="currentColor" stroke-width="0.65" stroke-dasharray="8 12" />`,
+            `<path class="geo-wave geo-wave--b" d="${d2}" stroke="currentColor" stroke-width="0.5" stroke-dasharray="4 14" />`
+        );
+    }
+
+    return `
+        <svg class="console-ambient-svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" fill="none">
+            <g class="geo-layer geo-layer--waves">
+                ${periodicWaves.join("")}
+            </g>
+            <g class="geo-layer geo-layer--spokes">
+                ${spokes.join("")}
+                <circle cx="800" cy="500" r="640" stroke="currentColor" stroke-width="0.8" stroke-dasharray="4 12" />
+                <circle cx="800" cy="500" r="520" stroke="currentColor" stroke-width="0.9" stroke-dasharray="28 14 4 14" />
+                <circle cx="800" cy="500" r="390" stroke="currentColor" stroke-width="0.75" stroke-dasharray="10 10" />
+            </g>
+            <g class="geo-layer geo-layer--rosette">
+                ${rosettePetals.join("")}
+            </g>
+            <g class="geo-layer geo-layer--polyhedra">
+                ${innerHarmonics.join("")}
+            </g>
+            <g class="geo-layer geo-layer--core">
+                <circle cx="800" cy="500" r="240" stroke="currentColor" stroke-width="1.1" stroke-dasharray="16 8 2 8" />
+                <circle cx="800" cy="500" r="140" stroke="currentColor" stroke-width="1" stroke-dasharray="6 6" />
+                <circle cx="800" cy="500" r="64" stroke="currentColor" stroke-width="1.2" />
+            </g>
+        </svg>
+    `;
+}
 
 export default class ConsolePanel {
     constructor(options = {}) {
@@ -11,6 +77,9 @@ export default class ConsolePanel {
         host.className = "console-panel-host";
         host.innerHTML = `
             <main class="console-shell">
+                <div class="console-ambient-bg" aria-hidden="true">
+                    ${buildGeometricAmbientSvg()}
+                </div>
                 <header class="console-topbar">
                     <div class="console-brand">
                         <button

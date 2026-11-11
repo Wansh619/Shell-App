@@ -2,7 +2,7 @@ import Icon from "./utils/icon.js";
 import { initializeTheme, toggleTheme, getTheme, getThemeConfig } from "./utils/theme.js";
 import Plugin from "./plugins/plugin.js";
 import HomePlugin from "./plugins/home/plugin.js";
-import ConsolePlugin from "./plugins/console/plugin.js?v=console-skills-6";
+import ConsolePlugin from "./plugins/console/plugin.js?v=console-skills-9";
 import DebugPlugin from "./plugins/debug/plugin.js";
 import CPUStatsPlugin from "./plugins/cpu_stats/plugin.js";
 import NetworkManagerPlugin from "./plugins/network_manager/plugin.js";

@@ -4,11 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Shell App Console</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/variable.css', v='console-skills-6') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/console.css', v='console-skills-6') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/variable.css', v='console-skills-10') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/console.css', v='console-skills-10') }}">
 </head>
 <body>
     <main class="console-shell">
+        <div class="console-ambient-bg" aria-hidden="true"></div>
         <header class="console-topbar">
             <div class="console-brand">
                 <button
@@ -59,6 +60,6 @@
             <section id="console-workspaces" class="console-workspaces" aria-label="Terminal panes"></section>
         </div>
     </main>
-    <script type="module" src="{{ url_for('static', filename='js/console.js', v='console-skills-6') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/console.js', v='console-skills-9') }}"></script>
 </body>
 </html>

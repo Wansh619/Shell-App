@@ -200,7 +200,9 @@ test("Zoom In, Zoom Out, Reset, and Fit toggle buttons update zoom level and fit
     assert.equal(zoomResetButton.textContent, "100%");
     assert.equal(controller.getZoom(), 1.0);
 
-    // Zoom In (+) -> 125%, exits contain fit mode
+    // Zoom In (+) -> 125%, exits contain fit mode and re-triggers BFS square animation
+    controller.bfsGrid.hidden = true;
+    controller.bfsGrid.classList.remove("is-animating");
     zoomInButton.dispatch("click");
     assert.equal(controller.getZoom(), 1.25);
     assert.equal(zoomResetButton.textContent, "125%");
@@ -209,11 +211,15 @@ test("Zoom In, Zoom Out, Reset, and Fit toggle buttons update zoom level and fit
     assert.equal(fitButton.dataset.fit, "actual");
     assert.equal(fitButton.classList.contains("is-active"), false);
     assert.equal(fitButton.getAttribute("aria-pressed"), "false");
+    assert.equal(controller.bfsGrid.hidden, false);
+    assert.ok(controller.bfsGrid.classList.contains("is-animating"));
 
-    // Zoom Out (−) twice -> 100% then 75%
+    // Zoom Out (−) twice -> 100% then 75%, re-triggering BFS square animation
+    controller.bfsGrid.hidden = true;
     zoomOutButton.dispatch("click");
     assert.equal(controller.getZoom(), 1.0);
     assert.equal(zoomResetButton.textContent, "100%");
+    assert.equal(controller.bfsGrid.hidden, false);
 
     zoomOutButton.dispatch("click");
     assert.equal(controller.getZoom(), 0.75);
