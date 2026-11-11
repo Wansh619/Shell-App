@@ -1,7 +1,8 @@
 import ConsoleManager from "./ConsoleManager.js";
 
 export default class ConsolePanel {
-    constructor() {
+    constructor(options = {}) {
+        this.options = options;
         this.manager = null;
     }
 
@@ -54,7 +55,7 @@ export default class ConsolePanel {
             </main>
         `;
         container.append(host);
-        this.manager = new ConsoleManager();
+        this.manager = new ConsoleManager(this.options);
     }
 
     stop() {
