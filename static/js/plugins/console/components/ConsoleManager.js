@@ -73,7 +73,18 @@ class CommandBlock {
     }
 
     updateInput(value) {
-        this.stdin.textContent = value;
+        const previous = this.stdin.textContent || "";
+        const next = String(value ?? "");
+        if (next.length > previous.length && next.startsWith(previous)) {
+            this.stdin.textContent = previous;
+            const added = next.slice(previous.length);
+            const span = document.createElement("span");
+            span.className = "console-typed-char";
+            span.textContent = added;
+            this.stdin.append(span);
+        } else {
+            this.stdin.textContent = next;
+        }
     }
 
     start() {
@@ -198,6 +209,14 @@ class ConsoleView {
         this.prompt.className = "console-command-prompt";
         this.prompt.textContent = "$";
 
+        this.inputWrap = document.createElement("div");
+        this.inputWrap.className = "console-input-wrap";
+
+        this.inputMirror = document.createElement("div");
+        this.inputMirror.className = "console-input-mirror";
+        this.inputMirror.setAttribute("aria-hidden", "true");
+        this._renderedMirrorText = "";
+
         this.input = document.createElement("textarea");
         this.input.className = "console-command-input";
         this.input.rows = 1;
@@ -207,6 +226,8 @@ class ConsoleView {
         this.input.autocomplete = "off";
         this.input.autocapitalize = "off";
         this.input.placeholder = "Connecting to terminal...";
+
+        this.inputWrap.append(this.inputMirror, this.input);
 
         this.submit = document.createElement("button");
         this.submit.className = "console-command-submit";
@@ -218,9 +239,10 @@ class ConsoleView {
         this.skillPanel.className = "console-skill-panel";
         this.skillPanel.hidden = true;
 
-        this.form.append(this.prompt, this.input, this.submit);
+        this.form.append(this.prompt, this.inputWrap, this.submit);
         this.container.replaceChildren(this.output, this.modeBar, this.form, this.skillPanel);
         this._syncStateAttributes();
+        this._syncInputMirror();
 
         this.form.addEventListener("submit", (event) => {
             event.preventDefault();
@@ -229,7 +251,17 @@ class ConsoleView {
         this.input.addEventListener("keydown", (event) => {
             this.handleKeydown(event, this.input, this.form);
         });
-        this.input.addEventListener("input", () => this.updateDraft());
+        this.input.addEventListener("input", () => {
+            this._triggerTypingAnimation();
+            this._syncInputMirror();
+            this.updateDraft();
+        });
+        this.input.addEventListener("focus", () => {
+            this.inputWrap.classList?.add?.("is-focused");
+        });
+        this.input.addEventListener("blur", () => {
+            this.inputWrap.classList?.remove?.("is-focused");
+        });
 
         this.resizeObserver = new ResizeObserver(() => this.fit());
         this.resizeObserver.observe(container);
@@ -478,6 +510,9 @@ class ConsoleView {
         } else if (event.key.toLowerCase() === "c" && event.ctrlKey) {
             event.preventDefault();
             input.value = "";
+            if (!isRunningInput) {
+                this._syncInputMirror();
+            }
             if (isRunningInput) {
                 this.sendInput(this.sessionId, "\u0003");
             } else {
@@ -539,6 +574,7 @@ class ConsoleView {
 
         const value = this.input.value;
         this.input.value = "";
+        this._syncInputMirror();
         if (!value.trim()) {
             this.draftBlock?.element.remove();
             this.draftBlock = null;
@@ -574,6 +610,7 @@ class ConsoleView {
         }
 
         this.input.value = "";
+        this._syncInputMirror();
         this.sendSkill(this.sessionId, {
             skill: parsed.skill,
             action: "read",
@@ -581,23 +618,62 @@ class ConsoleView {
         });
     }
 
+    _syncInputMirror() {
+        if (!this.inputMirror) {
+            return;
+        }
+        const nextText = String(this.input.value ?? "");
+        const prevText = this._renderedMirrorText || "";
+        this.inputWrap.classList?.toggle?.("has-value", nextText.length > 0);
+
+        if (!nextText) {
+            this._renderedMirrorText = "";
+            const caret = document.createElement("span");
+            caret.className = "console-input-caret";
+            this.inputMirror.replaceChildren(caret);
+            return;
+        }
+
+        const nodes = [];
+        for (let i = 0; i < nextText.length; i += 1) {
+            const charSpan = document.createElement("span");
+            const isNewChar = i >= prevText.length || nextText[i] !== prevText[i];
+            charSpan.className = isNewChar
+                ? "console-input-char console-input-char--new"
+                : "console-input-char";
+            charSpan.textContent = nextText[i];
+            nodes.push(charSpan);
+        }
+        const caret = document.createElement("span");
+        caret.className = "console-input-caret";
+        nodes.push(caret);
+
+        this._renderedMirrorText = nextText;
+        this.inputMirror.replaceChildren(...nodes);
+    }
+
+    _triggerTypingAnimation() {
+        this.form.classList?.remove?.("is-typing");
+        this.input.classList?.remove?.("is-typing");
+        // Trigger smooth typing pulse on form and input bar
+        this.form.classList?.add?.("is-typing");
+        this.input.classList?.add?.("is-typing");
+        this.form.dataset.hasValue = String(Boolean(this.input.value));
+        if (this._typingTimer) {
+            clearTimeout(this._typingTimer);
+        }
+        this._typingTimer = setTimeout(() => {
+            this.form.classList?.remove?.("is-typing");
+            this.input.classList?.remove?.("is-typing");
+            this._typingTimer = null;
+        }, 220);
+    }
+
     updateDraft() {
-        if (this.inputMode === "skills" || this.activeBlock) {
-            return;
-        }
-
-        if (!this.input.value) {
-            this.draftBlock?.element.remove();
+        if (this.draftBlock) {
+            this.draftBlock.element.remove();
             this.draftBlock = null;
-            return;
         }
-
-        if (!this.draftBlock) {
-            this.draftBlock = new CommandBlock(this.output, this.input.value);
-        } else {
-            this.draftBlock.updateInput(this.input.value);
-        }
-        this.scrollToBottom();
     }
 
     setPromptToken(token) {
@@ -786,6 +862,10 @@ class ConsoleView {
     }
 
     dispose() {
+        if (this._typingTimer) {
+            clearTimeout(this._typingTimer);
+            this._typingTimer = null;
+        }
         if (this.activeSkillController?.dispose) {
             this.activeSkillController.dispose();
             this.activeSkillController = null;
@@ -927,10 +1007,12 @@ class PaneManager {
         }
 
         const newLeaf = this._createLeaf();
+        newLeaf.element.classList?.add?.("console-pane--split-enter");
         const splitNode = {
             type: "split",
             orientation,
             ratio: 0.5,
+            isEntering: true,
             children: [currentLeaf, newLeaf]
         };
         this.root = this._replaceNode(this.root, currentLeaf.id, splitNode);
@@ -1061,7 +1143,10 @@ class PaneManager {
         }
 
         const split = document.createElement("div");
-        split.className = `console-split console-split--${node.orientation}`;
+        split.className = `console-split console-split--${node.orientation}${node.isEntering ? " console-split--entering" : ""}`;
+        if (node.isEntering) {
+            node.isEntering = false;
+        }
         const first = document.createElement("div");
         first.className = "console-split-child";
         first.append(this._renderNode(node.children[0]));

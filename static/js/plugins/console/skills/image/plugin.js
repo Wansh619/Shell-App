@@ -1,6 +1,11 @@
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4.0;
 const ZOOM_STEP = 0.25;
+const DEFAULT_BFS_COLS = 10;
+const DEFAULT_BFS_ROWS = 8;
+const BFS_DEPTH_DELAY_MS = 85;
+const BFS_INDEX_DELAY_MS = 18;
+const BFS_CELL_DURATION_MS = 480;
 
 function createElement(tagName, ...classNames) {
     const element = document.createElement(tagName);
@@ -9,6 +14,58 @@ function createElement(tagName, ...classNames) {
         element.classList?.add?.(...classNames);
     }
     return element;
+}
+
+function setStyleProperty(element, property, value) {
+    if (!element?.style) {
+        return;
+    }
+    if (typeof element.style.setProperty === "function") {
+        element.style.setProperty(property, value);
+    }
+    element.style[property] = value;
+}
+
+export function bfsSquareOrder(rows = DEFAULT_BFS_ROWS, cols = DEFAULT_BFS_COLS) {
+    const totalRows = Math.max(1, Math.floor(Number(rows) || DEFAULT_BFS_ROWS));
+    const totalCols = Math.max(1, Math.floor(Number(cols) || DEFAULT_BFS_COLS));
+    const visited = Array.from({ length: totalRows }, () =>
+        Array(totalCols).fill(false)
+    );
+    const order = [];
+    const queue = [[0, 0, 0]];
+    visited[0][0] = true;
+
+    // Left-to-right priority neighbors so the BFS wavefront sweeps left -> right then top -> bottom
+    const deltas = [
+        [0, 1],
+        [1, 0],
+        [1, 1],
+        [0, -1],
+        [-1, 0]
+    ];
+
+    while (queue.length > 0) {
+        const [r, c, depth] = queue.shift();
+        order.push({ r, c, depth, index: order.length });
+
+        for (const [dr, dc] of deltas) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (
+                nr >= 0
+                && nr < totalRows
+                && nc >= 0
+                && nc < totalCols
+                && !visited[nr][nc]
+            ) {
+                visited[nr][nc] = true;
+                queue.push([nr, nc, depth + 1]);
+            }
+        }
+    }
+
+    return order;
 }
 
 export function formatBytes(bytes) {
@@ -125,7 +182,71 @@ export function renderImagePanel(container, model = {}, context = {}) {
     const stage = createElement("div", "console-image-stage");
     stage.dataset.fit = fitMode;
 
+    const frame = createElement("div", "console-image-frame");
     const img = createElement("img", "console-image-preview");
+    const bfsGrid = createElement("div", "console-image-bfs-grid");
+    bfsGrid.setAttribute("aria-hidden", "true");
+    bfsGrid.hidden = true;
+    let bfsTimer = null;
+
+    function clearBfsTimer() {
+        if (bfsTimer !== null) {
+            clearTimeout(bfsTimer);
+            bfsTimer = null;
+        }
+    }
+
+    function startBfsReveal(cols = currentModel.bfsCols, rows = currentModel.bfsRows) {
+        clearBfsTimer();
+        const gridCols = Math.max(1, Math.floor(Number(cols) || DEFAULT_BFS_COLS));
+        const gridRows = Math.max(1, Math.floor(Number(rows) || DEFAULT_BFS_ROWS));
+
+        setStyleProperty(bfsGrid, "--bfs-cols", String(gridCols));
+        setStyleProperty(bfsGrid, "--bfs-rows", String(gridRows));
+        bfsGrid.dataset.cols = String(gridCols);
+        bfsGrid.dataset.rows = String(gridRows);
+
+        const cellsMatrix = Array.from({ length: gridRows }, (_, r) =>
+            Array.from({ length: gridCols }, (__, c) => {
+                const cell = createElement("div", "console-image-bfs-cell");
+                cell.dataset.row = String(r);
+                cell.dataset.col = String(c);
+                return cell;
+            })
+        );
+
+        const bfsOrder = bfsSquareOrder(gridRows, gridCols);
+        let maxDelayMs = 0;
+
+        for (const { r, c, depth, index } of bfsOrder) {
+            const cell = cellsMatrix[r][c];
+            const delayMs = Math.round(depth * BFS_DEPTH_DELAY_MS + index * BFS_INDEX_DELAY_MS);
+            if (delayMs > maxDelayMs) {
+                maxDelayMs = delayMs;
+            }
+            cell.dataset.bfsIndex = String(index);
+            cell.dataset.bfsDepth = String(depth);
+            setStyleProperty(cell, "--bfs-delay", `${delayMs}ms`);
+            setStyleProperty(cell, "--bfs-duration", `${BFS_CELL_DURATION_MS}ms`);
+            cell.classList.add("console-image-bfs-cell--reveal");
+        }
+
+        const flatCells = cellsMatrix.flat();
+        bfsGrid.replaceChildren(...flatCells);
+        bfsGrid.hidden = false;
+        bfsGrid.classList.remove("is-complete");
+        bfsGrid.classList.add("is-animating");
+
+        const totalDurationMs = maxDelayMs + BFS_CELL_DURATION_MS + 120;
+        bfsTimer = setTimeout(() => {
+            bfsTimer = null;
+            bfsGrid.classList.remove("is-animating");
+            bfsGrid.classList.add("is-complete");
+            bfsGrid.hidden = true;
+        }, totalDurationMs);
+
+        return bfsOrder;
+    }
 
     function updateMetadata() {
         const displayName = resolveDisplayName(currentModel);
@@ -167,17 +288,32 @@ export function renderImagePanel(container, model = {}, context = {}) {
         zoomOutButton.disabled = zoom <= MIN_ZOOM;
         zoomInButton.disabled = zoom >= MAX_ZOOM;
 
+        const width = Number(currentModel.width);
+        const height = Number(currentModel.height);
+        const hasDimensions =
+            Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0;
+        const isSvg =
+            String(currentModel.mime_type || "").includes("svg")
+            || String(currentModel.filename || currentModel.filepath || "").toLowerCase().endsWith(".svg");
+
         img.style.transform = `scale(${zoom})`;
         if (isFit && zoom === 1) {
             img.style.objectFit = "contain";
             img.style.maxWidth = "100%";
             img.style.maxHeight = "100%";
-            img.style.width = "";
+            if (isSvg) {
+                img.style.width = hasDimensions ? `${Math.max(width, 280)}px` : "320px";
+                img.style.height = hasDimensions ? `${Math.max(height, 280)}px` : "320px";
+            } else {
+                img.style.width = "";
+                img.style.height = "";
+            }
         } else {
             img.style.objectFit = "none";
             img.style.maxWidth = "none";
             img.style.maxHeight = "none";
             img.style.width = percentText;
+            img.style.height = "";
         }
     }
 
@@ -188,11 +324,14 @@ export function renderImagePanel(container, model = {}, context = {}) {
     }
 
     function showError(errorMessage) {
+        clearBfsTimer();
         const message = errorMessage || "Failed to load image.";
         statusLabel.textContent = message;
         statusLabel.classList.add("has-error");
         wrapper.classList.add("has-error");
         img.hidden = true;
+        bfsGrid.hidden = true;
+        bfsGrid.classList.remove("is-animating");
     }
 
     function applyModel(nextModel = {}) {
@@ -212,6 +351,7 @@ export function renderImagePanel(container, model = {}, context = {}) {
         img.hidden = false;
         img.src = src;
         applyZoomAndFit();
+        startBfsReveal();
     }
 
     const onFitClick = () => {
@@ -265,7 +405,8 @@ export function renderImagePanel(container, model = {}, context = {}) {
     img.onload = onImageLoad;
     img.onerror = onImageError;
 
-    stage.append(img);
+    frame.append(img, bfsGrid);
+    stage.append(frame);
     wrapper.append(toolbar, stage);
     container.replaceChildren(wrapper);
 
@@ -285,7 +426,10 @@ export function renderImagePanel(container, model = {}, context = {}) {
         statusLabel,
         backButton,
         stage,
+        frame,
+        bfsGrid,
         image: img,
+        startBfsReveal,
         getZoom() {
             return zoom;
         },
@@ -306,6 +450,7 @@ export function renderImagePanel(container, model = {}, context = {}) {
             backButton.focus?.();
         },
         dispose() {
+            clearBfsTimer();
             fitButton.removeEventListener("click", onFitClick);
             zoomOutButton.removeEventListener("click", onZoomOutClick);
             zoomResetButton.removeEventListener("click", onZoomResetClick);

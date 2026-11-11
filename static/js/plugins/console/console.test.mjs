@@ -248,4 +248,26 @@ test("PaneManager and ConsoleView manage Terminal/Skills toggle and panel state 
     view.transitionToTerminal();
     assert.equal(view.state, "terminal");
     assert.equal(leaf.backButton.hidden, true);
+
+    // Switch back to Terminal mode and verify typing in input bar animates the input mirror without creating a draftBlock preview
+    view.terminalModeBtn.dispatch("click");
+    assert.equal(view.inputMode, "terminal");
+    view.input.value = "ls";
+    view.input.dispatch("input");
+    assert.equal(view.form.classList.contains("is-typing"), true);
+    assert.equal(view.input.classList.contains("is-typing"), true);
+    assert.equal(view.draftBlock, null);
+    assert.equal(view.inputMirror.children.length, 3); // 'l', 's', and caret
+
+    view.input.value = "ls -la";
+    view.input.dispatch("input");
+    assert.equal(view.draftBlock, null);
+    assert.equal(view.inputMirror.children.length, 7); // 6 chars + caret
+    assert.ok(view.inputMirror.children[5].className.includes("console-input-char--new"));
+
+    // Splitting pane adds split entrance animation classes
+    paneManager.split("horizontal");
+    assert.equal(paneManager.paneCount, 2);
+
+    view.dispose();
 });

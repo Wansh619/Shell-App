@@ -30,6 +30,7 @@ from app.plugins.console.utils import (
 def create_app(plugins: Iterable[Plugin] = ()) -> Quart:
     project_root = Path(__file__).resolve().parent.parent
     application = Quart(__name__, root_path=str(project_root))
+    application.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
     init_extensions(application)
 
     console_manager = application.extensions["console_manager"]

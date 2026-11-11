@@ -1,4 +1,4 @@
-import ConsoleManager from "./ConsoleManager.js";
+import ConsoleManager from "./ConsoleManager.js?v=console-skills-6";
 
 export default class ConsolePanel {
     constructor(options = {}) {
@@ -21,7 +21,14 @@ export default class ConsolePanel {
                             aria-expanded="true"
                             aria-controls="console-sidebar"
                             title="Hide session sidebar"
-                        ><span aria-hidden="true">☰</span></button>
+                        >
+                            <svg class="console-sidebar-svg" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect class="svg-trace-frame" x="3" y="4" width="18" height="16" rx="3" />
+                                <line class="svg-trace-divider" x1="9.5" y1="4" x2="9.5" y2="20" />
+                                <rect class="svg-fill-panel" x="4.2" y="5.2" width="4.2" height="13.6" rx="1.2" />
+                                <path class="svg-trace-chevron" d="M15 9.5L12.5 12L15 14.5" />
+                            </svg>
+                        </button>
                         <span class="console-status-dot"></span>
                         <div>
                             <strong>Shell Console</strong>

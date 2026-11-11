@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import imageSkillPlugin, {
     renderImagePanel,
     renderFallbackImagePanel,
-    formatBytes
+    formatBytes,
+    bfsSquareOrder
 } from "./plugin.js";
 
 class FakeClassList {
@@ -340,4 +341,54 @@ test("Back button invokes context.onBack() and lifecycle methods focus/dispose w
 
     controller.dispose();
     assert.equal(container.children.length, 0);
+});
+
+test("bfsSquareOrder traverses left-to-right in BFS wavefronts and renderImagePanel animates BFS square cells", () => {
+    setupFakeDom();
+    const order = bfsSquareOrder(3, 4);
+    assert.equal(order.length, 12);
+    // Starts at top-left (0, 0)
+    assert.deepEqual({ r: order[0].r, c: order[0].c, depth: order[0].depth }, { r: 0, c: 0, depth: 0 });
+    // Depth 1 visits (0, 1) before (1, 0) (left-to-right priority)
+    assert.deepEqual({ r: order[1].r, c: order[1].c, depth: order[1].depth }, { r: 0, c: 1, depth: 1 });
+    assert.deepEqual({ r: order[2].r, c: order[2].c, depth: order[2].depth }, { r: 1, c: 0, depth: 1 });
+
+    // Depths are monotonically non-decreasing
+    for (let i = 1; i < order.length; i += 1) {
+        assert.ok(order[i].depth >= order[i - 1].depth);
+    }
+
+    const container = new FakeElement("div");
+    const controller = renderImagePanel(container, {
+        filename: "bfs-test.png",
+        data_url: "data:image/png;base64,iVBORw0KGgo=",
+        bfsCols: 5,
+        bfsRows: 4
+    });
+
+    assert.ok(controller.bfsGrid);
+    assert.equal(controller.bfsGrid.hidden, false);
+    assert.ok(controller.bfsGrid.classList.contains("is-animating"));
+    assert.equal(controller.bfsGrid.children.length, 20);
+
+    const firstCell = controller.bfsGrid.children[0];
+    const secondCell = controller.bfsGrid.children[1];
+    const lastCell = controller.bfsGrid.children[19];
+
+    assert.equal(firstCell.dataset.bfsIndex, "0");
+    assert.equal(firstCell.dataset.bfsDepth, "0");
+    assert.equal(firstCell.style["--bfs-delay"], "0ms");
+    assert.ok(firstCell.classList.contains("console-image-bfs-cell--reveal"));
+
+    // Cell (0, 1) is index 1 at depth 1 -> delay > 0ms
+    assert.equal(secondCell.dataset.row, "0");
+    assert.equal(secondCell.dataset.col, "1");
+    assert.equal(secondCell.dataset.bfsIndex, "1");
+    assert.ok(Number.parseInt(secondCell.style["--bfs-delay"], 10) > 0);
+    assert.ok(
+        Number.parseInt(lastCell.style["--bfs-delay"], 10)
+        > Number.parseInt(secondCell.style["--bfs-delay"], 10)
+    );
+
+    controller.dispose();
 });
