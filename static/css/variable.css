@@ -1,4 +1,5 @@
-:root {
+:root,
+:root[data-theme="light"] {
     /* important color and variables */
     /* the dark shades  */
     --dark-shade-1: #121212;
@@ -23,6 +24,118 @@
     --light-shade-9: #efefef;
     --light-shade-10: #ededed;
 
+    /* Cyberpunk palette shades & accents */
+    --cyberpunk-shade-1: #1b1035;
+    --cyberpunk-shade-2: #221442;
+    --cyberpunk-shade-3: #2a1950;
+    --cyberpunk-shade-4: #321e5e;
+    --cyberpunk-shade-5: #3b246d;
+    --cyberpunk-shade-6: #452b7d;
+    --cyberpunk-shade-7: #50328e;
+    --cyberpunk-shade-8: #5b3a9f;
+    --cyberpunk-shade-9: #6743b1;
+    --cyberpunk-shade-10: #744cc4;
+    --cyberpunk-opposite-1: #00f0ff;
+    --cyberpunk-opposite-2: #26f3ff;
+    --cyberpunk-opposite-3: #4df6ff;
+    --cyberpunk-opposite-4: #73f8ff;
+    --cyberpunk-opposite-5: #99fbff;
+    --cyberpunk-opposite-6: #ff2a85;
+    --cyberpunk-opposite-7: #ff4796;
+    --cyberpunk-opposite-8: #ff66a7;
+    --cyberpunk-opposite-9: #ff85b9;
+    --cyberpunk-opposite-10: #ffa3ca;
+    --cyberpunk-primary: #ff2a85;
+    --cyberpunk-accent: #ff2a85;
+    --cyberpunk-chart-1: #00f0ff;
+    --cyberpunk-chart-2: #ff2a85;
+    --cyberpunk-chart-3: #fcee0a;
+    --cyberpunk-chart-4: #b86bff;
+
+    /* Ocean palette shades & accents */
+    --ocean-shade-1: #0d2840;
+    --ocean-shade-2: #11324f;
+    --ocean-shade-3: #163d5f;
+    --ocean-shade-4: #1b4870;
+    --ocean-shade-5: #215481;
+    --ocean-shade-6: #276092;
+    --ocean-shade-7: #2e6da4;
+    --ocean-shade-8: #367ab6;
+    --ocean-shade-9: #3f88c8;
+    --ocean-shade-10: #4996da;
+    --ocean-opposite-1: #5eead4;
+    --ocean-opposite-2: #48e5c8;
+    --ocean-opposite-3: #34d399;
+    --ocean-opposite-4: #38bdf8;
+    --ocean-opposite-5: #67e8f9;
+    --ocean-opposite-6: #7dd3fc;
+    --ocean-opposite-7: #99f6e4;
+    --ocean-opposite-8: #a5f3fc;
+    --ocean-opposite-9: #bae6fd;
+    --ocean-opposite-10: #ccfbf1;
+    --ocean-primary: #00b4d8;
+    --ocean-accent: #0284c7;
+    --ocean-chart-1: #38bdf8;
+    --ocean-chart-2: #2dd4bf;
+    --ocean-chart-3: #f59e0b;
+    --ocean-chart-4: #fb7185;
+
+    /* Sage palette shades & accents */
+    --sage-shade-1: #1b2e24;
+    --sage-shade-2: #22392d;
+    --sage-shade-3: #294536;
+    --sage-shade-4: #315140;
+    --sage-shade-5: #395d4a;
+    --sage-shade-6: #426a54;
+    --sage-shade-7: #4b775f;
+    --sage-shade-8: #55856b;
+    --sage-shade-9: #609377;
+    --sage-shade-10: #6ba183;
+    --sage-opposite-1: #b7e4c7;
+    --sage-opposite-2: #95d5b2;
+    --sage-opposite-3: #74c69d;
+    --sage-opposite-4: #52b788;
+    --sage-opposite-5: #d8f3dc;
+    --sage-opposite-6: #e9c46a;
+    --sage-opposite-7: #ddbea9;
+    --sage-opposite-8: #cad2c5;
+    --sage-opposite-9: #b5c99a;
+    --sage-opposite-10: #9caf88;
+    --sage-primary: #52b788;
+    --sage-accent: #e9c46a;
+    --sage-chart-1: #9caf88;
+    --sage-chart-2: #52b788;
+    --sage-chart-3: #e9c46a;
+    --sage-chart-4: #e76f51;
+
+    /* Ember palette shades & accents */
+    --ember-shade-1: #2b1216;
+    --ember-shade-2: #37171c;
+    --ember-shade-3: #431d23;
+    --ember-shade-4: #50232a;
+    --ember-shade-5: #5d2931;
+    --ember-shade-6: #6b3039;
+    --ember-shade-7: #793842;
+    --ember-shade-8: #88404b;
+    --ember-shade-9: #974955;
+    --ember-shade-10: #a7525f;
+    --ember-opposite-1: #ffb703;
+    --ember-opposite-2: #fca311;
+    --ember-opposite-3: #fb8500;
+    --ember-opposite-4: #ffd166;
+    --ember-opposite-5: #ff9f1c;
+    --ember-opposite-6: #ffbf69;
+    --ember-opposite-7: #f48c06;
+    --ember-opposite-8: #f77f00;
+    --ember-opposite-9: #fcbf49;
+    --ember-opposite-10: #eae2b7;
+    --ember-primary: #fb8500;
+    --ember-accent: #ff2a55;
+    --ember-chart-1: #fb923c;
+    --ember-chart-2: #f43f5e;
+    --ember-chart-3: #facc15;
+    --ember-chart-4: #a855f7;
+
     --white: white;
     --start-sage: #9caf88;
 
@@ -30,6 +143,11 @@
     --font-family: sans-serif;
     --grey: grey;
     --dark-theme-element-color: #00c896;
+
+    --monitoring-chart-primary: var(--primary, #6200ee);
+    --monitoring-chart-secondary: #008978;
+    --monitoring-chart-tertiary: #a66b00;
+    --monitoring-chart-fourth: #c24062;
 
     --theme-shade-1: var(--light-shade-1);
     --theme-shade-2: var(--light-shade-2);
@@ -55,12 +173,13 @@
     --opposite-theme-shade-10: var(--dark-shade-10);
 
 
-    --page-background:var(--theme-shade-5);
-    --normal-text : var(--dark-shade-1);
+    --page-background: var(--theme-shade-5);
+    --normal-text: var(--opposite-theme-shade-1);
 
 }
 
-.dark {
+.dark,
+:root[data-theme="dark"] {
     --theme-shade-1: var(--dark-shade-1);
     --theme-shade-2: var(--dark-shade-2);
     --theme-shade-3: var(--dark-shade-3);
@@ -82,8 +201,152 @@
     --opposite-theme-shade-8: var(--light-shade-8);
     --opposite-theme-shade-9: var(--light-shade-9);
     --opposite-theme-shade-10: var(--light-shade-10);
-    --normal-text : var(--opposite-theme-shade-1);
 
+    --primary: #6200EE;
+    --dark-theme-element-color: #00c896;
+    --monitoring-chart-primary: #b69aff;
+    --monitoring-chart-secondary: #4ad9bd;
+    --monitoring-chart-tertiary: #efbb54;
+    --monitoring-chart-fourth: #ff91ad;
+
+    --page-background: var(--theme-shade-5);
+    --normal-text: var(--opposite-theme-shade-1);
+}
+
+:root[data-theme="cyberpunk"] {
+    --theme-shade-1: var(--cyberpunk-shade-1);
+    --theme-shade-2: var(--cyberpunk-shade-2);
+    --theme-shade-3: var(--cyberpunk-shade-3);
+    --theme-shade-4: var(--cyberpunk-shade-4);
+    --theme-shade-5: var(--cyberpunk-shade-5);
+    --theme-shade-6: var(--cyberpunk-shade-6);
+    --theme-shade-7: var(--cyberpunk-shade-7);
+    --theme-shade-8: var(--cyberpunk-shade-8);
+    --theme-shade-9: var(--cyberpunk-shade-9);
+    --theme-shade-10: var(--cyberpunk-shade-10);
+
+    --opposite-theme-shade-1: var(--cyberpunk-opposite-1);
+    --opposite-theme-shade-2: var(--cyberpunk-opposite-2);
+    --opposite-theme-shade-3: var(--cyberpunk-opposite-3);
+    --opposite-theme-shade-4: var(--cyberpunk-opposite-4);
+    --opposite-theme-shade-5: var(--cyberpunk-opposite-5);
+    --opposite-theme-shade-6: var(--cyberpunk-opposite-6);
+    --opposite-theme-shade-7: var(--cyberpunk-opposite-7);
+    --opposite-theme-shade-8: var(--cyberpunk-opposite-8);
+    --opposite-theme-shade-9: var(--cyberpunk-opposite-9);
+    --opposite-theme-shade-10: var(--cyberpunk-opposite-10);
+
+    --primary: var(--cyberpunk-primary);
+    --dark-theme-element-color: var(--cyberpunk-accent);
+    --monitoring-chart-primary: var(--cyberpunk-chart-1);
+    --monitoring-chart-secondary: var(--cyberpunk-chart-2);
+    --monitoring-chart-tertiary: var(--cyberpunk-chart-3);
+    --monitoring-chart-fourth: var(--cyberpunk-chart-4);
+
+    --page-background: var(--theme-shade-5);
+    --normal-text: var(--opposite-theme-shade-1);
+}
+
+:root[data-theme="ocean"] {
+    --theme-shade-1: var(--ocean-shade-1);
+    --theme-shade-2: var(--ocean-shade-2);
+    --theme-shade-3: var(--ocean-shade-3);
+    --theme-shade-4: var(--ocean-shade-4);
+    --theme-shade-5: var(--ocean-shade-5);
+    --theme-shade-6: var(--ocean-shade-6);
+    --theme-shade-7: var(--ocean-shade-7);
+    --theme-shade-8: var(--ocean-shade-8);
+    --theme-shade-9: var(--ocean-shade-9);
+    --theme-shade-10: var(--ocean-shade-10);
+
+    --opposite-theme-shade-1: var(--ocean-opposite-1);
+    --opposite-theme-shade-2: var(--ocean-opposite-2);
+    --opposite-theme-shade-3: var(--ocean-opposite-3);
+    --opposite-theme-shade-4: var(--ocean-opposite-4);
+    --opposite-theme-shade-5: var(--ocean-opposite-5);
+    --opposite-theme-shade-6: var(--ocean-opposite-6);
+    --opposite-theme-shade-7: var(--ocean-opposite-7);
+    --opposite-theme-shade-8: var(--ocean-opposite-8);
+    --opposite-theme-shade-9: var(--ocean-opposite-9);
+    --opposite-theme-shade-10: var(--ocean-opposite-10);
+
+    --primary: var(--ocean-primary);
+    --dark-theme-element-color: var(--ocean-accent);
+    --monitoring-chart-primary: var(--ocean-chart-1);
+    --monitoring-chart-secondary: var(--ocean-chart-2);
+    --monitoring-chart-tertiary: var(--ocean-chart-3);
+    --monitoring-chart-fourth: var(--ocean-chart-4);
+
+    --page-background: var(--theme-shade-5);
+    --normal-text: var(--opposite-theme-shade-1);
+}
+
+:root[data-theme="sage"] {
+    --theme-shade-1: var(--sage-shade-1);
+    --theme-shade-2: var(--sage-shade-2);
+    --theme-shade-3: var(--sage-shade-3);
+    --theme-shade-4: var(--sage-shade-4);
+    --theme-shade-5: var(--sage-shade-5);
+    --theme-shade-6: var(--sage-shade-6);
+    --theme-shade-7: var(--sage-shade-7);
+    --theme-shade-8: var(--sage-shade-8);
+    --theme-shade-9: var(--sage-shade-9);
+    --theme-shade-10: var(--sage-shade-10);
+
+    --opposite-theme-shade-1: var(--sage-opposite-1);
+    --opposite-theme-shade-2: var(--sage-opposite-2);
+    --opposite-theme-shade-3: var(--sage-opposite-3);
+    --opposite-theme-shade-4: var(--sage-opposite-4);
+    --opposite-theme-shade-5: var(--sage-opposite-5);
+    --opposite-theme-shade-6: var(--sage-opposite-6);
+    --opposite-theme-shade-7: var(--sage-opposite-7);
+    --opposite-theme-shade-8: var(--sage-opposite-8);
+    --opposite-theme-shade-9: var(--sage-opposite-9);
+    --opposite-theme-shade-10: var(--sage-opposite-10);
+
+    --primary: var(--sage-primary);
+    --dark-theme-element-color: var(--sage-accent);
+    --monitoring-chart-primary: var(--sage-chart-1);
+    --monitoring-chart-secondary: var(--sage-chart-2);
+    --monitoring-chart-tertiary: var(--sage-chart-3);
+    --monitoring-chart-fourth: var(--sage-chart-4);
+
+    --page-background: var(--theme-shade-5);
+    --normal-text: var(--opposite-theme-shade-1);
+}
+
+:root[data-theme="ember"] {
+    --theme-shade-1: var(--ember-shade-1);
+    --theme-shade-2: var(--ember-shade-2);
+    --theme-shade-3: var(--ember-shade-3);
+    --theme-shade-4: var(--ember-shade-4);
+    --theme-shade-5: var(--ember-shade-5);
+    --theme-shade-6: var(--ember-shade-6);
+    --theme-shade-7: var(--ember-shade-7);
+    --theme-shade-8: var(--ember-shade-8);
+    --theme-shade-9: var(--ember-shade-9);
+    --theme-shade-10: var(--ember-shade-10);
+
+    --opposite-theme-shade-1: var(--ember-opposite-1);
+    --opposite-theme-shade-2: var(--ember-opposite-2);
+    --opposite-theme-shade-3: var(--ember-opposite-3);
+    --opposite-theme-shade-4: var(--ember-opposite-4);
+    --opposite-theme-shade-5: var(--ember-opposite-5);
+    --opposite-theme-shade-6: var(--ember-opposite-6);
+    --opposite-theme-shade-7: var(--ember-opposite-7);
+    --opposite-theme-shade-8: var(--ember-opposite-8);
+    --opposite-theme-shade-9: var(--ember-opposite-9);
+    --opposite-theme-shade-10: var(--ember-opposite-10);
+
+    --primary: var(--ember-primary);
+    --dark-theme-element-color: var(--ember-accent);
+    --monitoring-chart-primary: var(--ember-chart-1);
+    --monitoring-chart-secondary: var(--ember-chart-2);
+    --monitoring-chart-tertiary: var(--ember-chart-3);
+    --monitoring-chart-fourth: var(--ember-chart-4);
+
+    --page-background: var(--theme-shade-5);
+    --normal-text: var(--opposite-theme-shade-1);
 }
 
  /* ---------------------------------------SHADE LEVEL ATTRIBS------------------------ */
@@ -97,10 +360,10 @@
 }
 
 .bg-shade-3{
-    background: var(--dark-shade-3) !important;
+    background: var(--theme-shade-3) !important;
 }
 .bg-shade-4{
-    background: var(--dark-shade-4) !important;
+    background: var(--theme-shade-4) !important;
 }
 
 .bg-shade-5{
@@ -111,19 +374,19 @@
 }
 
 .bg-shade-7{
-    background: var(--dark-shade-7) !important;
+    background: var(--theme-shade-7) !important;
 }
 
 .bg-shade-8{
-    background: var(--dark-shade-8) !important;
+    background: var(--theme-shade-8) !important;
 }
 
 .bg-shade-9{
-    background: var(--dark-shade-9) !important;
+    background: var(--theme-shade-9) !important;
 }
 
 .bg-shade-10{
-    background: var(--dark-shade-9) !important;
+    background: var(--theme-shade-10) !important;
 }
 
  /* FONT  */

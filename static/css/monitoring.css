@@ -2,10 +2,6 @@
    1. Theme Variables & Dashboard Root
    ========================================================================== */
 .monitoring-dashboard {
-    --monitoring-chart-primary: var(--primary, #6200ee);
-    --monitoring-chart-secondary: #008978;
-    --monitoring-chart-tertiary: #a66b00;
-    --monitoring-chart-fourth: #c24062;
     color: var(--normal-text);
     background: var(--theme-shade-3);
     font-family: var(--font-family, sans-serif);
@@ -17,11 +13,8 @@
     box-sizing: border-box;
     color-scheme: light;
 }
-.dark .monitoring-dashboard {
-    --monitoring-chart-primary: #b69aff;
-    --monitoring-chart-secondary: #4ad9bd;
-    --monitoring-chart-tertiary: #efbb54;
-    --monitoring-chart-fourth: #ff91ad;
+.dark .monitoring-dashboard,
+:root[data-theme]:not([data-theme="light"]) .monitoring-dashboard {
     color-scheme: dark;
 }
 .monitoring-dashboard *,
@@ -172,7 +165,7 @@
     transition: background-color 0.28s ease, border-color 0.28s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease;
 }
 .monitoring-gauge-card {
-    --gauge-accent: var(--monitoring-chart-primary);
+    --gauge-accent: var(--monitoring-chart-primary, #6200ee);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -180,9 +173,9 @@
     position: relative;
     overflow: hidden;
 }
-.monitoring-gauge-card.is-secondary { --gauge-accent: var(--monitoring-chart-secondary); }
-.monitoring-gauge-card.is-tertiary { --gauge-accent: var(--monitoring-chart-tertiary); }
-.monitoring-gauge-card.is-fourth { --gauge-accent: var(--monitoring-chart-fourth); }
+.monitoring-gauge-card.is-secondary { --gauge-accent: var(--monitoring-chart-secondary, #008978); }
+.monitoring-gauge-card.is-tertiary { --gauge-accent: var(--monitoring-chart-tertiary, #a66b00); }
+.monitoring-gauge-card.is-fourth { --gauge-accent: var(--monitoring-chart-fourth, #c24062); }
 .monitoring-gauge-card:hover {
     border-color: var(--gauge-accent);
     transform: translateY(-2px);
