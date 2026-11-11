@@ -14,40 +14,32 @@
 @keyframes hex-bfs-appear {
   0% {
     opacity: 0;
-    transform: translate3d(-12px, -12px, 0) scale(0.65);
-    background: var(--opposite-theme-shade-1);
-    border-color: var(--opposite-theme-shade-1);
+    transform: scale(0);
   }
   100% {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    background: var(--theme-shade-1);
-    border-color: color-mix(in srgb, var(--normal-text) 18%, transparent);
+    transform: scale(1);
   }
 }
 
 @keyframes hex-menu-surface-spawn {
   0% {
-    background: var(--opposite-theme-shade-1);
-    border-color: var(--opposite-theme-shade-1);
-    transform: scale(0.88);
+    opacity: 0;
+    transform: scale(0);
   }
   100% {
-    background: var(--theme-shade-1);
-    border-color: color-mix(in srgb, var(--normal-text) 18%, transparent);
+    opacity: 1;
     transform: scale(1);
   }
 }
 
 @keyframes hex-theme-surface-spawn {
   0% {
-    background: var(--theme-shade-1);
-    border-color: color-mix(in srgb, var(--normal-text) 18%, transparent);
-    transform: scale(0.84);
+    opacity: 0;
+    transform: scale(0);
   }
   100% {
-    background: var(--opposite-theme-shade-2);
-    border-color: var(--opposite-theme-shade-1);
+    opacity: 1;
     transform: scale(1);
   }
 }
@@ -60,5 +52,17 @@
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hex-theme-flip {
+  0% {
+    transform: perspective(640px) rotateY(0deg) scale(1);
+  }
+  50% {
+    transform: perspective(640px) rotateY(90deg) scale(0.86);
+  }
+  100% {
+    transform: perspective(640px) rotateY(0deg) scale(1);
   }
 }
