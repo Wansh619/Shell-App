@@ -43,11 +43,11 @@
     z-index: 0;
     background: radial-gradient(
         circle,
-        rgba(0, 212, 255, 0.34) 0%,
-        rgba(16, 185, 129, 0.20) 48%,
-        rgba(0, 212, 255, 0) 72%
+        color-mix(in srgb, var(--monitoring-chart-primary) 34%, transparent) 0%,
+        color-mix(in srgb, var(--monitoring-chart-secondary) 20%, transparent) 48%,
+        transparent 72%
     );
-    box-shadow: 0 0 0 1.5px rgba(0, 212, 255, 0.36);
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--monitoring-chart-primary) 36%, transparent);
     animation: networkDropRipple 0.68s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -132,8 +132,8 @@
     border-radius: 50%;
     background: radial-gradient(
         circle,
-        rgba(0, 212, 255, 0.26) 0%,
-        rgba(16, 185, 129, 0.14) 45%,
+        color-mix(in srgb, var(--monitoring-chart-primary) 26%, transparent) 0%,
+        color-mix(in srgb, var(--monitoring-chart-secondary) 14%, transparent) 45%,
         transparent 72%
     );
     transform: translate(-50%, -50%) scale(0.05);
@@ -194,7 +194,7 @@
 .monitoring-technology.network-android-tile:hover {
     transform: translateY(-3px);
     border-color: var(--monitoring-chart-primary);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22), 0 0 16px rgba(0, 212, 255, 0.14);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22), 0 0 16px color-mix(in srgb, var(--monitoring-chart-primary) 14%, transparent);
 }
 .network-quick-tile[data-active="true"],
 .network-quick-tile.is-active {
@@ -269,7 +269,7 @@
 .network-quick-tile[data-active="true"] .network-quick-tile-icon {
     transform: scale(1.08) rotate(-2deg);
     border-color: var(--monitoring-chart-primary);
-    box-shadow: 0 0 12px rgba(0, 212, 255, 0.24);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--monitoring-chart-primary) 24%, transparent);
 }
 .network-connection-tile:hover .network-row-svg-icon {
     transform: scale(1.08);

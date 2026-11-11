@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Shell App Console</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/console.css', v='console-sidebar-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/variable.css', v='theme-palettes-2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/console.css', v='theme-palettes-2') }}">
 </head>
 <body>
     <main class="console-shell">
@@ -53,6 +54,6 @@
             <section id="console-workspaces" class="console-workspaces" aria-label="Terminal panes"></section>
         </div>
     </main>
-    <script type="module" src="{{ url_for('static', filename='js/console.js', v='console-sidebar-1') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/console.js', v='theme-palettes-2') }}"></script>
 </body>
 </html>

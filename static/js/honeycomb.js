@@ -1,5 +1,5 @@
 import Icon from "./utils/icon.js";
-import { initializeTheme, toggleTheme } from "./utils/theme.js";
+import { initializeTheme, toggleTheme, getTheme, getThemeConfig } from "./utils/theme.js";
 import Plugin from "./plugins/plugin.js";
 import HomePlugin from "./plugins/home/plugin.js";
 import ConsolePlugin from "./plugins/console/plugin.js";
@@ -300,13 +300,16 @@ class HomeyComb {
     async _setCellContent(cell, { role, name, icon, menuIndex }) {
         cell.dataset.role = role;
         cell.dataset.menuIndex = menuIndex ?? "";
-        cell.setAttribute("aria-label", role === "theme" ? "Toggle color theme" : name);
-        cell.title = role === "theme" ? "Toggle color theme" : name;
         if (role === "theme") {
-            cell.setAttribute(
-                "aria-pressed",
-                String(document.documentElement.classList.contains("dark"))
-            );
+            const currentTheme = getTheme(document.documentElement);
+            const themeMeta = getThemeConfig(currentTheme);
+            cell.dataset.theme = currentTheme;
+            cell.setAttribute("aria-label", `Theme: ${themeMeta.label} (click to cycle)`);
+            cell.title = `Theme: ${themeMeta.label} (click to cycle)`;
+            cell.setAttribute("aria-pressed", String(themeMeta.mode === "dark"));
+        } else {
+            cell.setAttribute("aria-label", name);
+            cell.title = name;
         }
 
         const surface = cell.querySelector(".hex-surface");
@@ -449,10 +452,14 @@ class HomeyComb {
 
     _toggleTheme(e) {
         const theme = toggleTheme();
-        e.target.closest(".hex-cell")?.setAttribute(
-            "aria-pressed",
-            String(theme === "dark")
-        );
+        const themeMeta = getThemeConfig(theme);
+        const cell = e.target.closest(".hex-cell");
+        if (cell) {
+            cell.dataset.theme = theme;
+            cell.setAttribute("aria-pressed", String(themeMeta.mode === "dark"));
+            cell.setAttribute("aria-label", `Theme: ${themeMeta.label} (click to cycle)`);
+            cell.title = `Theme: ${themeMeta.label} (click to cycle)`;
+        }
     }
 
     async _openMenu(hexSlot, item) {

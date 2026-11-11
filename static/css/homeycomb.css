@@ -29,7 +29,7 @@
   position: absolute;
   inset: 2px;
   background: var(--theme-shade-1);
-  border: 1px solid color-mix(in srgb, var(--normal-text) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--opposite-theme-shade-1) 24%, transparent);
   border-radius: 8px;
   clip-path: polygon(
     50% 0%,
@@ -48,6 +48,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.hex-cell[data-role="menu"] .hex-surface {
+  background: var(--theme-shade-2);
+  border-color: color-mix(in srgb, var(--opposite-theme-shade-1) 40%, transparent);
+}
+
+.hex-cell[data-role="bg"]:hover .hex-surface {
+  background: var(--theme-shade-3);
+  border-color: color-mix(in srgb, var(--opposite-theme-shade-1) 38%, transparent);
 }
 
 /* BFS top-left to bottom-right opening wave with single smooth color transition */
@@ -87,8 +97,8 @@
   filter: blur(28px);
   background: radial-gradient(
     circle,
-    color-mix(in srgb, var(--normal-text) 35%, transparent) 0%,
-    color-mix(in srgb, var(--normal-text) 16%, transparent) 40%,
+    color-mix(in srgb, var(--opposite-theme-shade-1) 38%, transparent) 0%,
+    color-mix(in srgb, var(--dark-theme-element-color) 20%, transparent) 42%,
     transparent 75%
   );
   transition: background 0.35s ease;
@@ -111,7 +121,7 @@
 .hex-cell[data-role="menu"]:hover .hex-surface,
 .hex-cell[data-role="theme"]:hover .hex-surface {
   background: var(--opposite-theme-shade-1);
-  border-color: color-mix(in srgb, var(--normal-text) 45%, transparent);
+  border-color: var(--opposite-theme-shade-3);
   color: var(--theme-shade-1);
 }
 

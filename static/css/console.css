@@ -10,7 +10,8 @@
     --console-muted: color-mix(in srgb, var(--normal-text) 62%, transparent);
 }
 
-:root.dark {
+:root.dark,
+:root[data-theme]:not([data-theme="light"]) {
     color-scheme: dark;
 }
 
