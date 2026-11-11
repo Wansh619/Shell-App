@@ -80,12 +80,20 @@ class HomeyComb {
         this._grid = { rows: 0, cols: 0, cells: [] };
         this._hexMetrics = { w: 0, h: 0, stepY: 0 };
         this._openingTimers = [];
+        this._flipTimers = [];
         this._hasPlayedOpening = false;
     }
 
     _clearOpeningTimers() {
         while (this._openingTimers.length) {
             clearTimeout(this._openingTimers.pop());
+        }
+        this._clearFlipTimers();
+    }
+
+    _clearFlipTimers() {
+        while (this._flipTimers.length) {
+            clearTimeout(this._flipTimers.pop());
         }
     }
 
@@ -229,12 +237,20 @@ class HomeyComb {
         if (animateOpening) {
             const bfsOrder = this._bfsOrderFromTopLeft(rows, cols);
             const totalCells = bfsOrder.length || 1;
-            const stepDelayMs = Math.min(22, Math.max(10, 2600 / totalCells));
-            const cellAnimDurationMs = 920;
+            const maxStepMs = 58;
+            const minStepMs = 1.8;
+            let cumulativeDelay = 0;
 
-            for (const { r, c, index, depth } of bfsOrder) {
+            for (let i = 0; i < bfsOrder.length; i++) {
+                const { r, c, index, depth } = bfsOrder[i];
                 const cell = cells[r][c];
-                const delayMs = Math.round(index * stepDelayMs);
+                const progress = totalCells > 1 ? i / (totalCells - 1) : 1;
+                if (i > 0) {
+                    const stepGap = minStepMs + (maxStepMs - minStepMs) * Math.pow(1 - progress, 2.6);
+                    cumulativeDelay += stepGap;
+                }
+                const delayMs = Math.round(cumulativeDelay);
+                const cellAnimDurationMs = Math.round(520 - 180 * progress);
                 cell.dataset.bfsIndex = String(index);
                 cell.dataset.bfsDepth = String(depth);
                 cell.style.setProperty("--hex-bfs-delay", `${delayMs}ms`);
@@ -242,9 +258,7 @@ class HomeyComb {
                 cell.classList.add("hex-bfs-opening");
             }
 
-            totalWaveDurationMs = Math.round(
-                (totalCells - 1) * stepDelayMs + cellAnimDurationMs * 0.75
-            );
+            totalWaveDurationMs = Math.round(cumulativeDelay + 360);
             const cleanupTimer = window.setTimeout(() => {
                 for (let r = 0; r < rows; r++) {
                     for (let c = 0; c < cols; c++) {
@@ -450,15 +464,93 @@ class HomeyComb {
         return registeredPlugin;
     }
 
+    _bfsRingsFromOrigin(originR, originC) {
+        const { rows, cols } = this._grid;
+        if (rows <= 0 || cols <= 0) return [];
+
+        const order = [];
+        const visited = new Set([`${originR},${originC}`]);
+        const queue = [[originR, originC, 0]];
+
+        while (queue.length > 0) {
+            const [r, c, ring] = queue.shift();
+            order.push({ r, c, ring });
+
+            for (const [nr, nc] of this._neighbors(r, c)) {
+                const key = `${nr},${nc}`;
+                if (visited.has(key)) continue;
+                visited.add(key);
+                queue.push([nr, nc, ring + 1]);
+            }
+        }
+
+        return order;
+    }
+
     _toggleTheme(e) {
+        const originCell = e.target.closest(".hex-cell");
+        const { rows, cols, cells } = this._grid;
+        let maxFlipDelayMs = 0;
+        const shouldAnimateFlip = !this._prefersReducedMotion() && cells.length > 0;
+
+        if (shouldAnimateFlip) {
+            this._clearFlipTimers();
+            let originR = Math.floor(rows / 2);
+            let originC = Math.floor(cols / 2);
+            if (originCell) {
+                for (let r = 0; r < rows; r++) {
+                    const c = cells[r].indexOf(originCell);
+                    if (c !== -1) {
+                        originR = r;
+                        originC = c;
+                        break;
+                    }
+                }
+            }
+
+            const ringStepMs = 85;
+            const ringCells = this._bfsRingsFromOrigin(originR, originC);
+            for (const { r, c, ring } of ringCells) {
+                const cell = cells[r][c];
+                const flipDelayMs = ring * ringStepMs;
+                if (flipDelayMs > maxFlipDelayMs) {
+                    maxFlipDelayMs = flipDelayMs;
+                }
+                cell.dataset.flipRing = String(ring);
+                cell.classList.remove("hex-theme-flipping");
+                cell.style.setProperty("--hex-flip-delay", `${flipDelayMs}ms`);
+                cell.style.setProperty("--hex-flip-duration", "520ms");
+            }
+
+            void this.bg.offsetWidth;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    cells[r][c].classList.add("hex-theme-flipping");
+                }
+            }
+        }
+
         const theme = toggleTheme();
         const themeMeta = getThemeConfig(theme);
-        const cell = e.target.closest(".hex-cell");
-        if (cell) {
-            cell.dataset.theme = theme;
-            cell.setAttribute("aria-pressed", String(themeMeta.mode === "dark"));
-            cell.setAttribute("aria-label", `Theme: ${themeMeta.label} (click to cycle)`);
-            cell.title = `Theme: ${themeMeta.label} (click to cycle)`;
+        if (originCell) {
+            originCell.dataset.theme = theme;
+            originCell.setAttribute("aria-pressed", String(themeMeta.mode === "dark"));
+            originCell.setAttribute("aria-label", `Theme: ${themeMeta.label} (click to cycle)`);
+            originCell.title = `Theme: ${themeMeta.label} (click to cycle)`;
+        }
+
+        if (shouldAnimateFlip) {
+            const cleanupTimer = window.setTimeout(() => {
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const cell = cells[r][c];
+                        cell.classList.remove("hex-theme-flipping");
+                        cell.style.removeProperty("--hex-flip-delay");
+                        cell.style.removeProperty("--hex-flip-duration");
+                    }
+                }
+            }, maxFlipDelayMs + 560);
+            this._flipTimers.push(cleanupTimer);
         }
     }
 

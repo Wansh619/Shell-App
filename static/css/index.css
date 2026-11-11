@@ -1,6 +1,6 @@
-@import url("./variable.css?v=theme-palettes-2");
+@import url("./variable.css?v=theme-flip-3");
 @import url(navbar.css);
-@import url("./homeycomb.css?v=theme-palettes-2");
+@import url("./homeycomb.css?v=theme-flip-3");
 html{
 color : var(--normal-text);
 }
