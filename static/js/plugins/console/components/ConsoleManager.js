@@ -1,3 +1,7 @@
+import { createDefaultSkillRegistry } from "../skills/registry.js";
+
+const VALID_PANEL_STATES = new Set(["terminal", "editor panel", "image panel"]);
+
 class CommandBlock {
     constructor(container, command) {
         this.element = document.createElement("article");
@@ -69,7 +73,18 @@ class CommandBlock {
     }
 
     updateInput(value) {
-        this.stdin.textContent = value;
+        const previous = this.stdin.textContent || "";
+        const next = String(value ?? "");
+        if (next.length > previous.length && next.startsWith(previous)) {
+            this.stdin.textContent = previous;
+            const added = next.slice(previous.length);
+            const span = document.createElement("span");
+            span.className = "console-typed-char";
+            span.textContent = added;
+            this.stdin.append(span);
+        } else {
+            this.stdin.textContent = next;
+        }
     }
 
     start() {
@@ -143,12 +158,35 @@ class CommandBlock {
 const ANSI_CONTROL_SEQUENCE = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\))/g;
 const NON_PRINTING_CONTROL = /[\x00-\x08\x0B\x0C\x0E-\x1D\x1F\x7F]/g;
 
-class TerminalView {
-    constructor(sessionId, container, { sendInput, sendResize }) {
+class ConsoleView {
+    constructor(
+        sessionId,
+        container,
+        {
+            sendInput,
+            sendResize,
+            sendSkill,
+            skillRegistry,
+            paneElement = null,
+            stateBadge = null,
+            backButton = null
+        } = {}
+    ) {
         this.sessionId = sessionId;
         this.container = container;
-        this.sendInput = sendInput;
-        this.sendResize = sendResize;
+        this.sendInput = sendInput || (() => {});
+        this.sendResize = sendResize || (() => {});
+        this.sendSkill = sendSkill || (() => {});
+        this.skillRegistry = skillRegistry || createDefaultSkillRegistry();
+        this.paneElement = paneElement;
+        this.stateBadge = stateBadge;
+        this.backButton = backButton;
+
+        this.state = "terminal";
+        this.inputMode = "terminal";
+        this.selectedSkill = null;
+        this.activeSkillController = null;
+
         this.promptMarker = null;
         this.pendingOutput = "";
         this.pendingCommandEcho = "";
@@ -162,12 +200,22 @@ class TerminalView {
         this.output.className = "console-command-history";
         this.output.setAttribute("aria-live", "polite");
 
+        this.modeBar = this._createModeBar();
+
         this.form = document.createElement("form");
         this.form.className = "console-command-form";
 
         this.prompt = document.createElement("span");
         this.prompt.className = "console-command-prompt";
         this.prompt.textContent = "$";
+
+        this.inputWrap = document.createElement("div");
+        this.inputWrap.className = "console-input-wrap";
+
+        this.inputMirror = document.createElement("div");
+        this.inputMirror.className = "console-input-mirror";
+        this.inputMirror.setAttribute("aria-hidden", "true");
+        this._renderedMirrorText = "";
 
         this.input = document.createElement("textarea");
         this.input.className = "console-command-input";
@@ -179,14 +227,22 @@ class TerminalView {
         this.input.autocapitalize = "off";
         this.input.placeholder = "Connecting to terminal...";
 
+        this.inputWrap.append(this.inputMirror, this.input);
+
         this.submit = document.createElement("button");
         this.submit.className = "console-command-submit";
         this.submit.type = "submit";
         this.submit.disabled = true;
         this.submit.textContent = "Run";
 
-        this.form.append(this.prompt, this.input, this.submit);
-        this.container.replaceChildren(this.output, this.form);
+        this.skillPanel = document.createElement("div");
+        this.skillPanel.className = "console-skill-panel";
+        this.skillPanel.hidden = true;
+
+        this.form.append(this.prompt, this.inputWrap, this.submit);
+        this.container.replaceChildren(this.output, this.modeBar, this.form, this.skillPanel);
+        this._syncStateAttributes();
+        this._syncInputMirror();
 
         this.form.addEventListener("submit", (event) => {
             event.preventDefault();
@@ -195,11 +251,256 @@ class TerminalView {
         this.input.addEventListener("keydown", (event) => {
             this.handleKeydown(event, this.input, this.form);
         });
-        this.input.addEventListener("input", () => this.updateDraft());
+        this.input.addEventListener("input", () => {
+            this._triggerTypingAnimation();
+            this._syncInputMirror();
+            this.updateDraft();
+        });
+        this.input.addEventListener("focus", () => {
+            this.inputWrap.classList?.add?.("is-focused");
+        });
+        this.input.addEventListener("blur", () => {
+            this.inputWrap.classList?.remove?.("is-focused");
+        });
 
         this.resizeObserver = new ResizeObserver(() => this.fit());
         this.resizeObserver.observe(container);
         requestAnimationFrame(() => this.fit());
+    }
+
+    _createModeBar() {
+        const bar = document.createElement("div");
+        bar.className = "console-input-mode-bar";
+
+        const toggleGroup = document.createElement("div");
+        toggleGroup.className = "console-mode-toggle";
+        toggleGroup.setAttribute("role", "group");
+        toggleGroup.setAttribute("aria-label", "Input mode");
+
+        this.terminalModeBtn = document.createElement("button");
+        this.terminalModeBtn.type = "button";
+        this.terminalModeBtn.className = "console-mode-btn is-active";
+        this.terminalModeBtn.dataset.mode = "terminal";
+        this.terminalModeBtn.setAttribute("aria-pressed", "true");
+        this.terminalModeBtn.textContent = "Terminal";
+        this.terminalModeBtn.addEventListener("click", () => this.setInputMode("terminal"));
+
+        this.skillsModeBtn = document.createElement("button");
+        this.skillsModeBtn.type = "button";
+        this.skillsModeBtn.className = "console-mode-btn";
+        this.skillsModeBtn.dataset.mode = "skills";
+        this.skillsModeBtn.setAttribute("aria-pressed", "false");
+        this.skillsModeBtn.textContent = "Skills";
+        this.skillsModeBtn.addEventListener("click", () => this.setInputMode("skills"));
+
+        toggleGroup.append(this.terminalModeBtn, this.skillsModeBtn);
+
+        this.skillSelector = document.createElement("div");
+        this.skillSelector.className = "console-skill-selector";
+        this.skillSelector.hidden = true;
+
+        this.skillPills = new Map();
+        for (const skill of this.skillRegistry.list()) {
+            const pill = document.createElement("button");
+            pill.type = "button";
+            pill.className = "console-skill-pill";
+            pill.dataset.skill = skill.name;
+            pill.textContent = skill.name;
+            pill.title = skill.label || skill.name;
+            pill.setAttribute("aria-pressed", "false");
+            pill.addEventListener("click", () => {
+                const nextSkill = this.selectedSkill === skill.name ? null : skill.name;
+                this.setSelectedSkill(nextSkill);
+                this.input.focus();
+            });
+            this.skillPills.set(skill.name, pill);
+            this.skillSelector.append(pill);
+        }
+
+        bar.append(toggleGroup, this.skillSelector);
+        return bar;
+    }
+
+    setInputMode(mode) {
+        if (mode !== "terminal" && mode !== "skills") {
+            return;
+        }
+        this.inputMode = mode;
+        const isSkills = mode === "skills";
+        this.terminalModeBtn.classList.toggle("is-active", !isSkills);
+        this.terminalModeBtn.setAttribute("aria-pressed", String(!isSkills));
+        this.skillsModeBtn.classList.toggle("is-active", isSkills);
+        this.skillsModeBtn.setAttribute("aria-pressed", String(isSkills));
+        this.skillSelector.hidden = !isSkills;
+        this.container.dataset.inputMode = mode;
+
+        if (isSkills && this.draftBlock) {
+            this.draftBlock.element.remove();
+            this.draftBlock = null;
+        }
+
+        this.updateInputState();
+    }
+
+    setSelectedSkill(skillName) {
+        this.selectedSkill = skillName && this.skillRegistry.get(skillName)
+            ? String(skillName).toLowerCase()
+            : null;
+        for (const [name, pill] of this.skillPills.entries()) {
+            const active = name === this.selectedSkill;
+            pill.classList.toggle("is-active", active);
+            pill.setAttribute("aria-pressed", String(active));
+        }
+        this.updateInputState();
+    }
+
+    _syncStateAttributes() {
+        this.container.dataset.panelState = this.state;
+        if (this.paneElement) {
+            this.paneElement.dataset.panelState = this.state;
+        }
+        if (this.stateBadge) {
+            this.stateBadge.textContent = this.state;
+            this.stateBadge.dataset.panelState = this.state;
+        }
+        if (this.backButton) {
+            this.backButton.hidden = this.state === "terminal";
+        }
+    }
+
+    transitionToState(panelState, skillResultData = {}, skillMeta = {}) {
+        const normalizedState = String(panelState ?? "").trim();
+        if (!VALID_PANEL_STATES.has(normalizedState)) {
+            throw new Error(`Unsupported panel state: ${panelState}`);
+        }
+        if (normalizedState === "terminal") {
+            this.transitionToTerminal();
+            return;
+        }
+
+        if (this.activeSkillController?.dispose) {
+            this.activeSkillController.dispose();
+        }
+        this.activeSkillController = null;
+
+        this.state = normalizedState;
+        this._syncStateAttributes();
+
+        this.output.hidden = true;
+        this.modeBar.hidden = true;
+        this.form.hidden = true;
+        this.skillPanel.hidden = false;
+        this.skillPanel.dataset.panelState = normalizedState;
+
+        const skillPlugin =
+            (skillMeta?.skill && this.skillRegistry.get(skillMeta.skill))
+            || this.skillRegistry.getByPanelState(normalizedState);
+
+        if (!skillPlugin) {
+            this.skillPanel.replaceChildren();
+            return;
+        }
+
+        const context = {
+            sessionId: this.sessionId,
+            paneId: this.sessionId,
+            skill: skillPlugin.name,
+            panelState: normalizedState,
+            sendSkillAction: (actionOrPayload, extra = {}) => {
+                if (typeof actionOrPayload === "string") {
+                    this.sendSkill(this.sessionId, {
+                        skill: skillPlugin.name,
+                        action: actionOrPayload,
+                        ...extra
+                    });
+                    return;
+                }
+                if (actionOrPayload && typeof actionOrPayload === "object") {
+                    this.sendSkill(this.sessionId, {
+                        skill: skillPlugin.name,
+                        ...actionOrPayload
+                    });
+                }
+            },
+            onBack: () => this.transitionToTerminal()
+        };
+
+        this.activeSkillController =
+            skillPlugin.renderPanel(this.skillPanel, skillResultData, context) || null;
+        this.activeSkillController?.focus?.();
+    }
+
+    transitionToTerminal() {
+        if (this.activeSkillController?.dispose) {
+            this.activeSkillController.dispose();
+        }
+        this.activeSkillController = null;
+        this.skillPanel.replaceChildren();
+        this.skillPanel.hidden = true;
+        delete this.skillPanel.dataset.panelState;
+
+        this.state = "terminal";
+        this._syncStateAttributes();
+
+        this.output.hidden = false;
+        this.modeBar.hidden = false;
+        this.form.hidden = false;
+        this.updateInputState();
+        this.input.focus();
+    }
+
+    handleSkillResult(message) {
+        if (!message || typeof message !== "object") {
+            return;
+        }
+
+        if (message.status === "error") {
+            const errorText = message.message || "Skill execution failed.";
+            if (this.state !== "terminal" && this.activeSkillController) {
+                if (typeof this.activeSkillController.onSkillResult === "function") {
+                    this.activeSkillController.onSkillResult(message);
+                    return;
+                }
+                if (typeof this.activeSkillController.showError === "function") {
+                    this.activeSkillController.showError(errorText);
+                    return;
+                }
+            }
+            this.showSkillError(errorText);
+            return;
+        }
+
+        if (message.status === "ok") {
+            const targetState =
+                message.panel_state
+                || this.skillRegistry.get(message.skill)?.panelState;
+
+            const isFollowUpAction =
+                this.state === targetState
+                && this.state !== "terminal"
+                && this.activeSkillController
+                && typeof this.activeSkillController.onSkillResult === "function"
+                && message.action
+                && message.action !== "read";
+
+            if (isFollowUpAction) {
+                this.activeSkillController.onSkillResult(message);
+                return;
+            }
+
+            if (targetState && VALID_PANEL_STATES.has(targetState)) {
+                this.transitionToState(targetState, message.data || {}, message);
+            }
+        }
+    }
+
+    showSkillError(message) {
+        const error = document.createElement("pre");
+        error.className = "console-terminal-error";
+        error.setAttribute("role", "alert");
+        error.textContent = message;
+        this.output.append(error);
+        this.scrollToBottom();
     }
 
     handleKeydown(event, input, form, isRunningInput = false) {
@@ -209,6 +510,9 @@ class TerminalView {
         } else if (event.key.toLowerCase() === "c" && event.ctrlKey) {
             event.preventDefault();
             input.value = "";
+            if (!isRunningInput) {
+                this._syncInputMirror();
+            }
             if (isRunningInput) {
                 this.sendInput(this.sessionId, "\u0003");
             } else {
@@ -259,12 +563,18 @@ class TerminalView {
     }
 
     submitInput() {
+        if (this.inputMode === "skills") {
+            this.submitSkillInput();
+            return;
+        }
+
         if (!this.isReady || this.activeBlock) {
             return;
         }
 
         const value = this.input.value;
         this.input.value = "";
+        this._syncInputMirror();
         if (!value.trim()) {
             this.draftBlock?.element.remove();
             this.draftBlock = null;
@@ -283,23 +593,87 @@ class TerminalView {
         this.scrollToBottom();
     }
 
+    submitSkillInput() {
+        const rawValue = this.input.value.trim();
+        if (!rawValue) {
+            return;
+        }
+
+        const parsed = this.skillRegistry.parseSkillInput(rawValue, this.selectedSkill);
+        if (!parsed) {
+            this.showSkillError("Unknown skill command. Try 'open <path>' or 'image <path>'.");
+            return;
+        }
+        if (!parsed.args) {
+            this.showSkillError(`Missing file path argument for skill '${parsed.skill}'.`);
+            return;
+        }
+
+        this.input.value = "";
+        this._syncInputMirror();
+        this.sendSkill(this.sessionId, {
+            skill: parsed.skill,
+            action: "read",
+            args: parsed.args
+        });
+    }
+
+    _syncInputMirror() {
+        if (!this.inputMirror) {
+            return;
+        }
+        const nextText = String(this.input.value ?? "");
+        const prevText = this._renderedMirrorText || "";
+        this.inputWrap.classList?.toggle?.("has-value", nextText.length > 0);
+
+        if (!nextText) {
+            this._renderedMirrorText = "";
+            const caret = document.createElement("span");
+            caret.className = "console-input-caret";
+            this.inputMirror.replaceChildren(caret);
+            return;
+        }
+
+        const nodes = [];
+        for (let i = 0; i < nextText.length; i += 1) {
+            const charSpan = document.createElement("span");
+            const isNewChar = i >= prevText.length || nextText[i] !== prevText[i];
+            charSpan.className = isNewChar
+                ? "console-input-char console-input-char--new"
+                : "console-input-char";
+            charSpan.textContent = nextText[i];
+            nodes.push(charSpan);
+        }
+        const caret = document.createElement("span");
+        caret.className = "console-input-caret";
+        nodes.push(caret);
+
+        this._renderedMirrorText = nextText;
+        this.inputMirror.replaceChildren(...nodes);
+    }
+
+    _triggerTypingAnimation() {
+        this.form.classList?.remove?.("is-typing");
+        this.input.classList?.remove?.("is-typing");
+        // Trigger smooth typing pulse on form and input bar
+        this.form.classList?.add?.("is-typing");
+        this.input.classList?.add?.("is-typing");
+        this.form.dataset.hasValue = String(Boolean(this.input.value));
+        if (this._typingTimer) {
+            clearTimeout(this._typingTimer);
+        }
+        this._typingTimer = setTimeout(() => {
+            this.form.classList?.remove?.("is-typing");
+            this.input.classList?.remove?.("is-typing");
+            this._typingTimer = null;
+        }, 220);
+    }
+
     updateDraft() {
-        if (this.activeBlock) {
-            return;
-        }
-
-        if (!this.input.value) {
-            this.draftBlock?.element.remove();
+        if (this.draftBlock) {
+            this.draftBlock.element.remove();
             this.draftBlock = null;
-            return;
         }
-
-        if (!this.draftBlock) {
-            this.draftBlock = new CommandBlock(this.output, this.input.value);
-        } else {
-            this.draftBlock.updateInput(this.input.value);
-        }
-        this.scrollToBottom();
     }
 
     setPromptToken(token) {
@@ -421,6 +795,20 @@ class TerminalView {
     }
 
     updateInputState() {
+        if (this.inputMode === "skills") {
+            const activePlugin = this.selectedSkill
+                ? this.skillRegistry.get(this.selectedSkill)
+                : null;
+            this.prompt.textContent = "✦";
+            this.input.disabled = false;
+            this.submit.disabled = false;
+            this.form.setAttribute("aria-disabled", "false");
+            this.input.placeholder = activePlugin?.placeholder
+                || "Enter skill command (e.g. open path/to/file or image path/to/img.png)";
+            this.submit.textContent = "Run Skill";
+            return;
+        }
+
         const isRunning = Boolean(this.activeBlock);
         this.prompt.textContent = isRunning ? ">" : "$";
         this.input.disabled = !this.isReady || isRunning;
@@ -466,16 +854,28 @@ class TerminalView {
     }
 
     focus() {
+        if (this.state !== "terminal" && this.activeSkillController?.focus) {
+            this.activeSkillController.focus();
+            return;
+        }
         this.input.focus();
     }
 
     dispose() {
+        if (this._typingTimer) {
+            clearTimeout(this._typingTimer);
+            this._typingTimer = null;
+        }
+        if (this.activeSkillController?.dispose) {
+            this.activeSkillController.dispose();
+            this.activeSkillController = null;
+        }
         this.resizeObserver.disconnect();
         this.container.replaceChildren();
     }
 }
 
-class TerminalTransport {
+class ConsoleTransport {
     constructor({ onOpen, onMessage }) {
         this.onOpen = onOpen;
         this.onMessage = onMessage;
@@ -607,10 +1007,12 @@ class PaneManager {
         }
 
         const newLeaf = this._createLeaf();
+        newLeaf.element.classList?.add?.("console-pane--split-enter");
         const splitNode = {
             type: "split",
             orientation,
             ratio: 0.5,
+            isEntering: true,
             children: [currentLeaf, newLeaf]
         };
         this.root = this._replaceNode(this.root, currentLeaf.id, splitNode);
@@ -661,13 +1063,34 @@ class PaneManager {
         const element = document.createElement("section");
         element.className = "console-pane";
         element.dataset.paneId = id;
+        element.dataset.panelState = "terminal";
 
         const header = document.createElement("div");
         header.className = "console-pane-header";
 
+        const titleGroup = document.createElement("div");
+        titleGroup.className = "console-pane-title-group";
+
         const title = document.createElement("span");
         title.className = "console-pane-title";
         title.textContent = `Terminal ${this.nextPaneNumber++}`;
+
+        const stateBadge = document.createElement("span");
+        stateBadge.className = "console-pane-state-badge";
+        stateBadge.dataset.panelState = "terminal";
+        stateBadge.textContent = "terminal";
+
+        titleGroup.append(title, stateBadge);
+
+        const controlsGroup = document.createElement("div");
+        controlsGroup.className = "console-pane-controls";
+
+        const backButton = document.createElement("button");
+        backButton.className = "console-pane-back";
+        backButton.type = "button";
+        backButton.hidden = true;
+        backButton.textContent = "← Back to Terminal";
+        backButton.setAttribute("aria-label", "Back to terminal");
 
         const closeButton = document.createElement("button");
         closeButton.className = "console-pane-close";
@@ -675,19 +1098,33 @@ class PaneManager {
         closeButton.textContent = "×";
         closeButton.setAttribute("aria-label", "Close terminal pane");
 
+        controlsGroup.append(backButton, closeButton);
+
         const terminalContainer = document.createElement("div");
         terminalContainer.className = "console-terminal";
 
-        header.append(title, closeButton);
+        header.append(titleGroup, controlsGroup);
         element.append(header, terminalContainer);
+
+        const terminal = this.createTerminal(id, terminalContainer, {
+            paneElement: element,
+            stateBadge,
+            backButton
+        });
 
         const leaf = {
             type: "leaf",
             id,
             element,
-            terminal: this.createTerminal(id, terminalContainer)
+            stateBadge,
+            backButton,
+            terminal
         };
 
+        backButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            leaf.terminal?.transitionToTerminal?.();
+        });
         element.addEventListener("pointerdown", () => this.activate(id));
         closeButton.addEventListener("click", (event) => {
             event.stopPropagation();
@@ -706,7 +1143,10 @@ class PaneManager {
         }
 
         const split = document.createElement("div");
-        split.className = `console-split console-split--${node.orientation}`;
+        split.className = `console-split console-split--${node.orientation}${node.isEntering ? " console-split--entering" : ""}`;
+        if (node.isEntering) {
+            node.isEntering = false;
+        }
         const first = document.createElement("div");
         first.className = "console-split-child";
         first.append(this._renderNode(node.children[0]));
@@ -918,16 +1358,18 @@ class PanelSession {
 }
 
 export default class ConsoleManager {
-    constructor() {
+    constructor({ skillRegistry } = {}) {
+        this._ensureAmbientGeometricBg();
         this.tabsContainer = document.getElementById("console-sessions");
         this.workspacesContainer = document.getElementById("console-workspaces");
         this.sidebar = document.getElementById("console-sidebar");
         this.sidebarToggle = document.getElementById("toggle-console-sidebar");
+        this.skillRegistry = skillRegistry || createDefaultSkillRegistry();
         this.terminalMap = new Map();
         this.panelSessions = new Map();
         this.activeSessionId = null;
         this.sessionNumber = 0;
-        this.transport = new TerminalTransport({
+        this.transport = new ConsoleTransport({
             onOpen: () => this.restoreTerminalSessions(),
             onMessage: (message) => this.handleMessage(message)
         });
@@ -952,6 +1394,72 @@ export default class ConsoleManager {
 
         this.transport.connect();
         this.createPanelSession();
+    }
+
+    _ensureAmbientGeometricBg() {
+        if (typeof document === "undefined" || typeof document.querySelector !== "function") {
+            return;
+        }
+        const shell = document.querySelector(".console-shell");
+        if (!shell || shell.querySelector(".console-ambient-svg .geo-layer")) {
+            return;
+        }
+        let ambient = shell.querySelector(".console-ambient-bg");
+        if (!ambient) {
+            ambient = document.createElement("div");
+            ambient.className = "console-ambient-bg";
+            ambient.setAttribute("aria-hidden", "true");
+            shell.prepend(ambient);
+        }
+        const spokes = [];
+        for (let i = 0; i < 24; i += 1) {
+            const angle = (i * 15 * Math.PI) / 180;
+            const x1 = (800 + Math.cos(angle) * 90).toFixed(1);
+            const y1 = (500 + Math.sin(angle) * 90).toFixed(1);
+            const x2 = (800 + Math.cos(angle) * 680).toFixed(1);
+            const y2 = (500 + Math.sin(angle) * 680).toFixed(1);
+            spokes.push(
+                `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="currentColor" stroke-width="0.55" stroke-dasharray="3 9" />`
+            );
+        }
+        const rosettePetals = [];
+        for (let i = 0; i < 12; i += 1) {
+            rosettePetals.push(
+                `<ellipse cx="800" cy="500" rx="460" ry="170" transform="rotate(${i * 30} 800 500)" stroke="currentColor" stroke-width="0.75" stroke-dasharray="18 10 4 10" />`
+            );
+        }
+        const innerHarmonics = [];
+        for (let i = 0; i < 18; i += 1) {
+            innerHarmonics.push(
+                `<rect x="520" y="220" width="560" height="560" rx="28" transform="rotate(${i * 20} 800 500)" stroke="currentColor" stroke-width="0.6" stroke-dasharray="12 16" />`
+            );
+        }
+        const periodicWaves = [];
+        for (let k = 0; k < 9; k += 1) {
+            const yBase = 100 + k * 100;
+            periodicWaves.push(
+                `<path class="geo-wave geo-wave--a" d="M -100 ${yBase} Q 350 ${yBase - 110}, 800 ${yBase} T 1700 ${yBase}" stroke="currentColor" stroke-width="0.65" stroke-dasharray="8 12" />`,
+                `<path class="geo-wave geo-wave--b" d="M -100 ${yBase} Q 350 ${yBase + 110}, 800 ${yBase} T 1700 ${yBase}" stroke="currentColor" stroke-width="0.5" stroke-dasharray="4 14" />`
+            );
+        }
+        ambient.innerHTML = `
+            <svg class="console-ambient-svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" fill="none">
+                <g class="geo-layer geo-layer--waves">${periodicWaves.join("")}</g>
+                <g class="geo-layer geo-layer--spokes">
+                    ${spokes.join("")}
+                    <circle cx="800" cy="500" r="640" stroke="currentColor" stroke-width="0.8" stroke-dasharray="4 12" />
+                    <circle cx="800" cy="500" r="520" stroke="currentColor" stroke-width="0.9" stroke-dasharray="28 14 4 14" />
+                    <circle cx="800" cy="500" r="390" stroke="currentColor" stroke-width="0.75" stroke-dasharray="10 10" />
+                </g>
+                <g class="geo-layer geo-layer--rosette">${rosettePetals.join("")}</g>
+                <g class="geo-layer geo-layer--polyhedra">${innerHarmonics.join("")}</g>
+                <g class="geo-layer geo-layer--core">
+                    <circle cx="800" cy="500" r="240" stroke="currentColor" stroke-width="1.1" stroke-dasharray="16 8 2 8" />
+                    <circle cx="800" cy="500" r="140" stroke="currentColor" stroke-width="1" stroke-dasharray="6 6" />
+                    <circle cx="800" cy="500" r="64" stroke="currentColor" stroke-width="1.2" />
+                </g>
+            </svg>
+        `;
     }
 
     toggleSidebar() {
@@ -980,8 +1488,8 @@ export default class ConsoleManager {
             {
                 onActivate: (sessionId) => this.activatePanelSession(sessionId),
                 onClose: (sessionId) => this.closePanelSession(sessionId),
-                createTerminal: (paneId, container) =>
-                    this.createTerminal(id, paneId, container),
+                createTerminal: (paneId, container, paneContext) =>
+                    this.createTerminal(id, paneId, container, paneContext),
                 removeTerminal: (paneId) => this.removeTerminal(paneId),
                 onTerminalActivate: (sessionId, paneId) =>
                     this.activateTerminal(sessionId, paneId)
@@ -1030,11 +1538,15 @@ export default class ConsoleManager {
         }
     }
 
-    createTerminal(workspaceId, paneId, container) {
-        const terminal = new TerminalView(paneId, container, {
+    createTerminal(workspaceId, paneId, container, paneContext = {}) {
+        const terminal = new ConsoleView(paneId, container, {
             sendInput: (sessionId, value) => this.send(sessionId, value),
             sendResize: (sessionId, cols, rows) =>
-                this.sendResize(sessionId, cols, rows)
+                this.sendResize(sessionId, cols, rows),
+            sendSkill: (sessionId, skillPayload) =>
+                this.sendSkill(sessionId, skillPayload),
+            skillRegistry: this.skillRegistry,
+            ...paneContext
         });
         this.terminalMap.set(paneId, { terminal, workspaceId });
         this.send(paneId, "__CTRL__:CREATE");
@@ -1084,6 +1596,8 @@ export default class ConsoleManager {
 
         if (message.type === "ready") {
             entry.terminal.setPromptToken(message.prompt_token);
+        } else if (message.type === "skill_result") {
+            entry.terminal.handleSkillResult(message);
         } else if (message.type === "error") {
             entry.terminal.showError(message.message || "The terminal session failed.");
         } else if (typeof message.value === "string") {
@@ -1097,6 +1611,17 @@ export default class ConsoleManager {
 
     sendResize(sessionId, cols, rows) {
         this.transport.send({ session_id: sessionId, type: "resize", cols, rows });
+    }
+
+    sendSkill(sessionId, { skill, action = "read", args = "", ...rest } = {}) {
+        this.transport.send({
+            session_id: sessionId,
+            type: "skill",
+            skill,
+            action,
+            args,
+            ...rest
+        });
     }
 
     close() {
@@ -1115,3 +1640,13 @@ export default class ConsoleManager {
         this.terminalMap.clear();
     }
 }
+
+export {
+    CommandBlock,
+    ConsoleView,
+    ConsoleView as TerminalView,
+    ConsoleTransport,
+    ConsoleTransport as TerminalTransport,
+    PaneManager,
+    PanelSession
+};

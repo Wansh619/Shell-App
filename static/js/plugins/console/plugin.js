@@ -8,7 +8,7 @@ export default class ConsolePlugin extends Plugin {
 
     async start({ overlay }) {
         const { default: ConsolePanel } = await import(
-            "./components/ConsolePanel.js?v=console-plugin-components-1"
+            "./components/ConsolePanel.js?v=console-skills-9"
         );
         this.component = new ConsolePanel();
         this.component.start(overlay);

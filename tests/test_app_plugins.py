@@ -9,10 +9,27 @@ from app import create_app
 from app.core.plugins import Plugin, PluginManager, initialize_plugins, register_plugins
 from app.plugins import (
     CPUStatsPlugin,
+    ConsolePlugin,
     NetworkManagerPlugin,
     PanelsPlugin,
     TerminalPlugin,
 )
+from app.plugins.console.models.models import (
+    ConsoleErrorPayload,
+    ConsoleMessage,
+    ConsoleOutputPayload,
+    ConsoleReadyPayload,
+    EditorViewModel,
+    ImageViewModel,
+    SessionResponse,
+    SkillPayload,
+    SkillResultPayload,
+    TerminalErrorPayload,
+    TerminalMessage,
+    TerminalOutputPayload,
+    TerminalReadyPayload,
+)
+from app.plugins.console.skills import Skill, SkillRegistry
 from app.plugins.cpu_stats.models.models import (
     CPUSnapshot,
     CompactCPUSample,
@@ -25,13 +42,6 @@ from app.plugins.network_manager.models.models import (
     OperationRecord,
 )
 from app.plugins.panels.models.models import LogUpdate, PanelTemplateMap
-from app.plugins.terminal.models.models import (
-    SessionResponse,
-    TerminalErrorPayload,
-    TerminalMessage,
-    TerminalOutputPayload,
-    TerminalReadyPayload,
-)
 
 
 class ExamplePlugin:
@@ -60,7 +70,7 @@ def test_app_registers_plugins_and_preserves_core_routes():
         assert health.status_code == 200
         assert await health.get_json() == {"status": "ok"}
         assert await plugins.get_json() == {
-            "plugins": ["terminal", "panels", "cpu_stats", "network_manager", "example"]
+            "plugins": ["console", "panels", "cpu_stats", "network_manager", "example"]
         }
         assert example.status_code == 200
         assert await example.get_json() == {"plugin": "example"}
@@ -134,7 +144,8 @@ def test_core_plugin_base_dataclass_and_manager_lifecycle():
     "plugin_cls,expected_name",
     [
         (PanelsPlugin, "panels"),
-        (TerminalPlugin, "terminal"),
+        (ConsolePlugin, "console"),
+        (TerminalPlugin, "console"),
         (CPUStatsPlugin, "cpu_stats"),
         (NetworkManagerPlugin, "network_manager"),
     ],
@@ -163,11 +174,20 @@ def test_all_plugin_models_use_dataclasses():
     for model_cls in (
         LogUpdate,
         PanelTemplateMap,
+        ConsoleMessage,
         TerminalMessage,
         SessionResponse,
+        ConsoleOutputPayload,
         TerminalOutputPayload,
+        ConsoleReadyPayload,
         TerminalReadyPayload,
+        ConsoleErrorPayload,
         TerminalErrorPayload,
+        SkillPayload,
+        SkillResultPayload,
+        EditorViewModel,
+        ImageViewModel,
+        Skill,
         CPUSnapshot,
         CompactCPUSample,
         MemoryMetrics,
@@ -193,3 +213,60 @@ def test_all_plugin_models_use_dataclasses():
         "created_at": "2026-01-01T00:00:00Z",
         "status": "active",
     }
+
+
+def test_console_skills_registry_and_http_dispatch():
+    class EchoSkill(Skill):
+        def __init__(self):
+            super().__init__(
+                name="echo",
+                panel_state="editor panel",
+                description="Echo test skill",
+            )
+
+        async def execute(
+            self,
+            session_id: str,
+            args: str = "",
+            action: str = "read",
+            content: str | None = None,
+            cwd: str | None = None,
+        ) -> SkillResultPayload:
+            return SkillResultPayload(
+                session_id=session_id,
+                skill=self.name,
+                panel_state=self.panel_state,
+                status="ok",
+                data={"args": args, "action": action, "content": content, "cwd": cwd},
+                message="Echoed",
+            )
+
+    registry = SkillRegistry()
+    registry.register(EchoSkill())
+
+    application = Quart_app = create_app()
+    # Verify default endpoints on application
+    async def check_endpoints():
+        async with Quart_app.test_client() as client:
+            skills_resp = await client.get("/console/skills")
+            assert skills_resp.status_code == 200
+            skills_data = await skills_resp.get_json()
+            assert "skills" in skills_data
+            assert isinstance(skills_data["skills"], list)
+
+            unknown_resp = await client.post(
+                "/console/skills/nonexistent",
+                json={"session_id": "s1", "action": "read", "args": "foo.txt"},
+            )
+            assert unknown_resp.status_code == 400
+            unknown_json = await unknown_resp.get_json()
+            assert unknown_json["status"] == "error"
+            assert unknown_json["panel_state"] == "terminal"
+            assert "Unknown skill" in unknown_json["message"]
+
+        result = await registry.execute("echo", session_id="s1", args="test.py")
+        assert result.status == "ok"
+        assert result.panel_state == "editor panel"
+        assert result.data["args"] == "test.py"
+
+    asyncio.run(check_endpoints())

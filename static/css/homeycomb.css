@@ -283,7 +283,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--theme-shade-2);
+  background: color-mix(in srgb, var(--theme-shade-2) 72%, transparent);
+  backdrop-filter: blur(14px);
   color: var(--normal-text);
 }
 
