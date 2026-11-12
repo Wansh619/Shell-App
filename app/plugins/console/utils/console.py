@@ -111,33 +111,66 @@ class ConsoleSession:
             environment["TERM"] = "dumb"
             marker = f"\\036SHELL_APP_PROMPT:{self.prompt_token}:"
 
+            tmp_base = "/tmp" if os.path.isdir("/tmp") and os.access("/tmp", os.W_OK | os.X_OK) else None
+            self.rc_dir = tempfile.mkdtemp(prefix="shell-app-rc-", dir=tmp_base)
+            os.chmod(self.rc_dir, 0o755)
+            bash_rc_path = os.path.join(self.rc_dir, "bashrc")
+            zsh_rc_path = os.path.join(self.rc_dir, ".zshrc")
+
+            su_wrapper = (
+                "su() {\n"
+                "  if [ $# -eq 0 ] || { [ $# -eq 1 ] && [ \"$1\" = \"-\" ]; }; then\n"
+                f"    command su -s /bin/bash root -c \"export HOME=\\$(eval echo ~root); cd \\\"\\$HOME\\\" 2>/dev/null || true; exec /bin/bash --rcfile '{bash_rc_path}' --noediting -i\"\n"
+                "  elif [ $# -eq 1 ] && [ \"${1#-}\" = \"$1\" ]; then\n"
+                "    local target_user=\"$1\"\n"
+                f"    command su -s /bin/bash \"$target_user\" -c \"export HOME=\\$(eval echo ~\\$USER); cd \\\"\\$HOME\\\" 2>/dev/null || true; exec /bin/bash --rcfile '{bash_rc_path}' --noediting -i\"\n"
+                "  elif [ $# -eq 2 ] && { [ \"$1\" = \"-\" ] || [ \"$1\" = \"-l\" ]; }; then\n"
+                "    local target_user=\"$2\"\n"
+                f"    command su -s /bin/bash \"$target_user\" -c \"export HOME=\\$(eval echo ~\\$USER); cd \\\"\\$HOME\\\" 2>/dev/null || true; exec /bin/bash --rcfile '{bash_rc_path}' --noediting -i\"\n"
+                "  else\n"
+                "    command su \"$@\"\n"
+                "  fi\n"
+                "}\n"
+                "sudo() {\n"
+                "  if [ $# -eq 1 ] && { [ \"$1\" = \"-i\" ] || [ \"$1\" = \"-s\" ] || [ \"$1\" = \"su\" ]; }; then\n"
+                f"    command sudo /bin/bash -c \"export HOME=\\$(eval echo ~root); cd \\\"\\$HOME\\\" 2>/dev/null || true; exec /bin/bash --rcfile '{bash_rc_path}' --noediting -i\"\n"
+                "  elif [ $# -eq 2 ] && [ \"$1\" = \"su\" ] && [ \"$2\" = \"-\" ]; then\n"
+                f"    command sudo /bin/bash -c \"export HOME=\\$(eval echo ~root); cd \\\"\\$HOME\\\" 2>/dev/null || true; exec /bin/bash --rcfile '{bash_rc_path}' --noediting -i\"\n"
+                "  elif [ $# -eq 2 ] && [ \"$1\" = \"su\" ] && [ \"${2#-}\" = \"$2\" ]; then\n"
+                f"    command sudo -u \"$2\" /bin/bash -c \"export HOME=\\$(eval echo ~\\$USER); cd \\\"\\$HOME\\\" 2>/dev/null || true; exec /bin/bash --rcfile '{bash_rc_path}' --noediting -i\"\n"
+                "  else\n"
+                "    command sudo \"$@\"\n"
+                "  fi\n"
+                "}\n"
+            )
+
+            with open(bash_rc_path, "w") as brc:
+                brc.write(
+                    "PS1=''\n"
+                    "export TERM='dumb'\n"
+                    f"{su_wrapper}"
+                    "PROMPT_COMMAND=\"__shell_app_status=\\$?; "
+                    "trap 'stty echo' DEBUG; "
+                    f"printf '{marker}%s\\\\037' \\\"\\$__shell_app_status\\\"; "
+                    "stty -echo\"\n"
+                )
+            os.chmod(bash_rc_path, 0o644)
+
+            with open(zsh_rc_path, "w") as zrc:
+                zrc.write(
+                    "PS1=''\nPROMPT=''\nRPROMPT=''\n"
+                    f"{su_wrapper}"
+                    "precmd() { local s=$?; "
+                    f"printf '{marker}%s\\037' \"$s\"; stty -echo; }}\n"
+                    "preexec() { stty echo; }\n"
+                )
+            os.chmod(zsh_rc_path, 0o644)
+
             if shell_name == "zsh":
-                self.rc_dir = tempfile.mkdtemp(prefix="shell-app-zsh-")
-                with open(os.path.join(self.rc_dir, ".zshrc"), "w") as rc:
-                    rc.write(
-                        "PS1=''\nPROMPT=''\nRPROMPT=''\n"
-                        "su() { if [ $# -eq 0 ]; then command su -; "
-                        "elif [ $# -eq 1 ] && [ \"${1#-}\" = \"$1\" ]; then command su - \"$1\"; "
-                        "else command su \"$@\"; fi; }\n"
-                        "precmd() { local s=$?; "
-                        f"printf '{marker}%s\\037' \"$s\"; stty -echo; }}\n"
-                        "preexec() { stty echo; }\n"
-                    )
                 environment["ZDOTDIR"] = self.rc_dir
                 argv = [shell, "-i", "-o", "no_zle"]
             elif shell_name == "bash":
-                environment["BASH_FUNC_su%%"] = (
-                    "() { if [ $# -eq 0 ]; then command su -; "
-                    "elif [ $# -eq 1 ] && [ \"${1#-}\" = \"$1\" ]; then command su - \"$1\"; "
-                    "else command su \"$@\"; fi; }"
-                )
-                environment["PROMPT_COMMAND"] = (
-                    "__shell_app_status=$?; "
-                    "trap 'stty echo' DEBUG; "
-                    f"printf '{marker}%s\\037' \"$__shell_app_status\"; "
-                    "stty -echo"
-                )
-                argv = [shell, "--noprofile", "--norc", "--noediting", "-i"]
+                argv = [shell, "--rcfile", bash_rc_path, "--noediting", "-i"]
             else:
                 # sh, dash, ksh, busybox ash...: expand the status inside PS1.
                 environment["PS1"] = f"\x1eSHELL_APP_PROMPT:{self.prompt_token}:$?\x1f"
