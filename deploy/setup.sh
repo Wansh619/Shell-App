@@ -24,8 +24,8 @@ command -v systemctl >/dev/null || fail "systemd is required."
 command -v apt-get >/dev/null || fail "This installer requires Debian or Ubuntu with apt-get."
 
 printf '[1/5] Installing prerequisite tools and libraries...\n'
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y \
+apt-get -o DPkg::Lock::Timeout=120 update
+DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y \
     ca-certificates curl git gnupg python3 python3-pip python3-venv
 
 command -v git >/dev/null || fail "Git installation failed."
@@ -38,8 +38,8 @@ if ! command -v cloudflared >/dev/null; then
     printf '%s\n' \
         'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' \
         > "${CLOUDFLARE_REPOSITORY}"
-    apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y cloudflared
+    apt-get -o DPkg::Lock::Timeout=120 update
+    DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y cloudflared
 fi
 command -v cloudflared >/dev/null || fail "cloudflared installation failed."
 
