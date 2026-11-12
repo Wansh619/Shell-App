@@ -67,8 +67,8 @@ if ! getent passwd "${SERVICE_USER}" >/dev/null; then
 fi
 getent group "${SERVICE_USER}" >/dev/null \
     || fail "The existing ${SERVICE_USER} account has no matching group."
-install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0750 "${STATE_DIR}"
-install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0750 /var/log/shell-app
+install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0755 "${STATE_DIR}"
+install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0755 /var/log/shell-app
 
 printf '[3/5] Writing app config and protected deployment settings...\n'
 install -d -o root -g root -m 0700 "${CONFIG_DIR}"

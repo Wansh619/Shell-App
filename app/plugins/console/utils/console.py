@@ -54,34 +54,45 @@ class ConsoleSession:
 
     def get_cwd(self) -> str:
         if self.process is not None and self.process.poll() is None:
-            pid = self.process.pid
-            proc_cwd = f"/proc/{pid}/cwd"
-            try:
-                if os.path.exists(proc_cwd):
-                    resolved = os.readlink(proc_cwd)
-                    if resolved and os.path.isdir(resolved):
-                        self.cwd = resolved
-                        return self.cwd
-            except OSError:
-                pass
+            candidate_pids = []
+            if self.master_fd is not None:
+                try:
+                    fg_pgid = os.tcgetpgrp(self.master_fd)
+                    if fg_pgid > 0:
+                        candidate_pids.append(fg_pgid)
+                except OSError:
+                    pass
+            if self.process.pid not in candidate_pids:
+                candidate_pids.append(self.process.pid)
 
-            try:
-                completed = subprocess.run(
-                    ["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],
-                    capture_output=True,
-                    text=True,
-                    timeout=0.5,
-                    check=False,
-                )
-                if completed.returncode == 0:
-                    for line in completed.stdout.splitlines():
-                        if line.startswith("n") and len(line) > 1:
-                            candidate = line[1:]
-                            if os.path.isdir(candidate):
-                                self.cwd = candidate
-                                return self.cwd
-            except Exception:
-                pass
+            for pid in candidate_pids:
+                proc_cwd = f"/proc/{pid}/cwd"
+                try:
+                    if os.path.exists(proc_cwd):
+                        resolved = os.readlink(proc_cwd)
+                        if resolved and os.path.isdir(resolved):
+                            self.cwd = resolved
+                            return self.cwd
+                except OSError:
+                    pass
+
+                try:
+                    completed = subprocess.run(
+                        ["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],
+                        capture_output=True,
+                        text=True,
+                        timeout=0.5,
+                        check=False,
+                    )
+                    if completed.returncode == 0:
+                        for line in completed.stdout.splitlines():
+                            if line.startswith("n") and len(line) > 1:
+                                candidate = line[1:]
+                                if os.path.isdir(candidate):
+                                    self.cwd = candidate
+                                    return self.cwd
+                except Exception:
+                    pass
 
         return self.cwd or os.getcwd()
 
@@ -105,6 +116,9 @@ class ConsoleSession:
                 with open(os.path.join(self.rc_dir, ".zshrc"), "w") as rc:
                     rc.write(
                         "PS1=''\nPROMPT=''\nRPROMPT=''\n"
+                        "su() { if [ $# -eq 0 ]; then command su -; "
+                        "elif [ $# -eq 1 ] && [ \"${1#-}\" = \"$1\" ]; then command su - \"$1\"; "
+                        "else command su \"$@\"; fi; }\n"
                         "precmd() { local s=$?; "
                         f"printf '{marker}%s\\037' \"$s\"; stty -echo; }}\n"
                         "preexec() { stty echo; }\n"
@@ -112,6 +126,11 @@ class ConsoleSession:
                 environment["ZDOTDIR"] = self.rc_dir
                 argv = [shell, "-i", "-o", "no_zle"]
             elif shell_name == "bash":
+                environment["BASH_FUNC_su%%"] = (
+                    "() { if [ $# -eq 0 ]; then command su -; "
+                    "elif [ $# -eq 1 ] && [ \"${1#-}\" = \"$1\" ]; then command su - \"$1\"; "
+                    "else command su \"$@\"; fi; }"
+                )
                 environment["PROMPT_COMMAND"] = (
                     "__shell_app_status=$?; "
                     "trap 'stty echo' DEBUG; "

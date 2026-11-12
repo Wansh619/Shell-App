@@ -169,14 +169,16 @@ def child_environment():
         environment["HOME"] = account.pw_dir
         environment["USER"] = account.pw_name
         environment["LOGNAME"] = account.pw_name
-        environment["PATH"] = "/usr/local/bin:/usr/bin:/bin"
+        environment["PATH"] = (
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        )
     return environment
 
 
 def get_run_account():
     if os.geteuid() != 0:
         return None
-    username = os.environ.get("SHELL_APP_RUN_USER", "shell-app")
+    username = os.environ.get("SHELL_APP_RUN_USER", "hat").strip() or "hat"
     try:
         return pwd.getpwnam(username)
     except KeyError as error:
@@ -207,7 +209,7 @@ def get_app_settings():
 
 def drop_child_privileges():
     account = get_run_account()
-    if account is None:
+    if account is None or account.pw_uid == 0:
         return
     os.setgroups([])
     os.setgid(account.pw_gid)

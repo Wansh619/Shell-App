@@ -15,12 +15,7 @@ ExecStart=/opt/shell-app/.venv/bin/python /opt/shell-app/scripts/public_service.
 Restart=on-failure
 RestartSec=30
 TimeoutStopSec=30
-UMask=0027
 NoNewPrivileges=false
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/shell-app /var/log/shell-app
 
 [Install]
 WantedBy=multi-user.target
